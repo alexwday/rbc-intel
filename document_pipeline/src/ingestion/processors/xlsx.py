@@ -22,6 +22,8 @@ from ..utils.config import (
     get_xlsx_classification_max_retries,
     get_xlsx_classification_retry_delay,
     get_xlsx_sheet_token_limit,
+    get_xlsx_vision_max_retries,
+    get_xlsx_vision_retry_delay,
 )
 from ..utils.file_types import ExtractionResult, PageResult
 from ..utils.prompt_loader import load_prompt
@@ -33,9 +35,6 @@ from ..utils.xlsx_layout import (
 )
 
 logger = logging.getLogger(__name__)
-
-_MAX_RETRIES = 3
-_RETRY_DELAY_S = 2.0
 
 RETRYABLE_ERRORS = (
     openai.RateLimitError,
@@ -117,6 +116,8 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
         >>> title
         "Q3 Financial Results"
     """
+    max_retries = get_xlsx_vision_max_retries()
+    retry_delay = get_xlsx_vision_retry_delay()
     b64 = base64.b64encode(img_bytes).decode()
 
     messages = [
@@ -139,7 +140,7 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
         },
     ]
 
-    for attempt in range(1, _MAX_RETRIES + 1):
+    for attempt in range(1, max_retries + 1):
         try:
             response = llm.call(
                 messages=messages,
@@ -150,18 +151,18 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
             return parse_vision_response(response)
 
         except RETRYABLE_ERRORS as exc:
-            if attempt == _MAX_RETRIES:
+            if attempt == max_retries:
                 logger.error(
                     "Vision call failed after %d attempts: %s",
-                    _MAX_RETRIES,
+                    max_retries,
                     exc,
                 )
                 raise
-            wait = _RETRY_DELAY_S * attempt
+            wait = retry_delay * attempt
             logger.warning(
                 "Vision retry %d/%d after %.1fs: %s",
                 attempt,
-                _MAX_RETRIES,
+                max_retries,
                 wait,
                 exc,
             )

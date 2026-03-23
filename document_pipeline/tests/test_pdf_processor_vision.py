@@ -9,7 +9,6 @@ import openai
 import pytest
 
 from helpers import make_extraction_prompt
-import ingestion.processors.pdf as pdf_module
 from ingestion.processors.pdf import (
     RenderedPdf,
     call_vision,
@@ -400,11 +399,14 @@ def test_call_vision_non_retryable_raises():
     assert mock_llm.call.call_count == 1
 
 
+@patch(
+    "ingestion.processors.pdf.get_pdf_vision_max_retries",
+    return_value=0,
+)
 def test_call_vision_zero_retries_raises_runtime_error(
-    monkeypatch,
+    _mock_config,
 ):
     """Zero-retry configuration fails with a clear error."""
-    monkeypatch.setattr(pdf_module, "_MAX_RETRIES", 0)
     mock_llm = MagicMock()
     prompt = _make_prompt()
 

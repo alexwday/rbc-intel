@@ -18,14 +18,17 @@ import openai
 import fitz
 
 from ..connections.llm import LLMClient
-from ..utils.config import get_vision_dpi_scale
+from ..utils.config import (
+    get_pptx_classification_max_retries,
+    get_pptx_classification_retry_delay,
+    get_pptx_vision_max_retries,
+    get_pptx_vision_retry_delay,
+    get_vision_dpi_scale,
+)
 from ..utils.file_types import ExtractionResult, PageResult
 from ..utils.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
-
-_MAX_RETRIES = 3
-_RETRY_DELAY_S = 2.0
 
 RETRYABLE_ERRORS = (
     openai.RateLimitError,
@@ -264,6 +267,8 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
         >>> title
         "Q3 Financial Results"
     """
+    max_retries = get_pptx_vision_max_retries()
+    retry_delay = get_pptx_vision_retry_delay()
     b64 = base64.b64encode(img_bytes).decode()
 
     messages = [
@@ -286,7 +291,7 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
         },
     ]
 
-    for attempt in range(1, _MAX_RETRIES + 1):
+    for attempt in range(1, max_retries + 1):
         try:
             response = llm.call(
                 messages=messages,
@@ -297,18 +302,18 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
             return parse_vision_response(response)
 
         except RETRYABLE_ERRORS as exc:
-            if attempt == _MAX_RETRIES:
+            if attempt == max_retries:
                 logger.error(
                     "Vision call failed after %d attempts: %s",
-                    _MAX_RETRIES,
+                    max_retries,
                     exc,
                 )
                 raise
-            wait = _RETRY_DELAY_S * attempt
+            wait = retry_delay * attempt
             logger.warning(
                 "Vision retry %d/%d after %.1fs: %s",
                 attempt,
-                _MAX_RETRIES,
+                max_retries,
                 wait,
                 exc,
             )
@@ -476,8 +481,6 @@ _SOFFICE_PATHS = [
 
 _CONVERSION_TIMEOUT_S = 120
 _CONVERSION_LOCK = threading.Lock()
-_CLASSIFICATION_MAX_RETRIES = 3
-_CLASSIFICATION_RETRY_DELAY_S = 2.0
 _RETRYABLE_CLASSIFICATION_ERRORS = (
     openai.OpenAIError,
     RuntimeError,
@@ -571,24 +574,26 @@ def _classify_slide_with_retry(
     content: str,
 ) -> dict[str, Any]:
     """Classify a slide with retry logic before failing the file."""
-    for attempt in range(1, _CLASSIFICATION_MAX_RETRIES + 1):
+    max_retries = get_pptx_classification_max_retries()
+    retry_delay = get_pptx_classification_retry_delay()
+    for attempt in range(1, max_retries + 1):
         try:
             return _classify_slide(
                 llm, prompt, page_number, page_title, content
             )
         except _RETRYABLE_CLASSIFICATION_ERRORS as exc:
-            if attempt == _CLASSIFICATION_MAX_RETRIES:
+            if attempt == max_retries:
                 raise RuntimeError(
                     f"Slide classification failed after "
-                    f"{_CLASSIFICATION_MAX_RETRIES} attempts for "
+                    f"{max_retries} attempts for "
                     f"slide {page_number}: {exc}"
                 ) from exc
-            wait = _CLASSIFICATION_RETRY_DELAY_S * attempt
+            wait = retry_delay * attempt
             logger.warning(
                 "Slide classification retry %d/%d after %.1fs for "
                 "slide %d: %s",
                 attempt,
-                _CLASSIFICATION_MAX_RETRIES,
+                max_retries,
                 wait,
                 page_number,
                 exc,

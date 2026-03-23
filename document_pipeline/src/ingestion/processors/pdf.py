@@ -15,14 +15,17 @@ import openai
 import fitz
 
 from ..connections.llm import LLMClient
-from ..utils.config import get_vision_dpi_scale
+from ..utils.config import (
+    get_pdf_classification_max_retries,
+    get_pdf_classification_retry_delay,
+    get_pdf_vision_max_retries,
+    get_pdf_vision_retry_delay,
+    get_vision_dpi_scale,
+)
 from ..utils.file_types import ExtractionResult, PageResult
 from ..utils.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
-
-_MAX_RETRIES = 3
-_RETRY_DELAY_S = 2.0
 
 RETRYABLE_ERRORS = (
     openai.RateLimitError,
@@ -261,6 +264,8 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
         >>> title
         "Q3 Financial Results"
     """
+    max_retries = get_pdf_vision_max_retries()
+    retry_delay = get_pdf_vision_retry_delay()
     b64 = base64.b64encode(img_bytes).decode()
 
     messages = [
@@ -283,7 +288,7 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
         },
     ]
 
-    for attempt in range(1, _MAX_RETRIES + 1):
+    for attempt in range(1, max_retries + 1):
         try:
             response = llm.call(
                 messages=messages,
@@ -294,18 +299,18 @@ def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
             return parse_vision_response(response)
 
         except RETRYABLE_ERRORS as exc:
-            if attempt == _MAX_RETRIES:
+            if attempt == max_retries:
                 logger.error(
                     "Vision call failed after %d attempts: %s",
-                    _MAX_RETRIES,
+                    max_retries,
                     exc,
                 )
                 raise
-            wait = _RETRY_DELAY_S * attempt
+            wait = retry_delay * attempt
             logger.warning(
                 "Vision retry %d/%d after %.1fs: %s",
                 attempt,
-                _MAX_RETRIES,
+                max_retries,
                 wait,
                 exc,
             )
@@ -465,8 +470,6 @@ def process_page(
 
 _CONTEXT_MAX_CHARS = 800
 _CONTEXT_MIN_CHARS = 50
-_CLASSIFICATION_MAX_RETRIES = 5
-_CLASSIFICATION_RETRY_DELAY_S = 2.0
 _RETRYABLE_CLASSIFICATION_ERRORS = (
     openai.OpenAIError,
     RuntimeError,
@@ -600,7 +603,9 @@ def _classify_continuation_with_retry(
     previous_content: str,
 ) -> dict[str, bool]:
     """Classify page continuation with retry logic."""
-    for attempt in range(1, _CLASSIFICATION_MAX_RETRIES + 1):
+    max_retries = get_pdf_classification_max_retries()
+    retry_delay = get_pdf_classification_retry_delay()
+    for attempt in range(1, max_retries + 1):
         try:
             return _classify_page_continuation(
                 llm,
@@ -609,17 +614,17 @@ def _classify_continuation_with_retry(
                 previous_content,
             )
         except _RETRYABLE_CLASSIFICATION_ERRORS as exc:
-            if attempt == _CLASSIFICATION_MAX_RETRIES:
+            if attempt == max_retries:
                 raise RuntimeError(
                     f"Page continuation classification failed after "
-                    f"{_CLASSIFICATION_MAX_RETRIES} attempts: {exc}"
+                    f"{max_retries} attempts: {exc}"
                 ) from exc
-            wait = _CLASSIFICATION_RETRY_DELAY_S * attempt
+            wait = retry_delay * attempt
             logger.warning(
                 "Page continuation classification retry %d/%d "
                 "after %.1fs: %s",
                 attempt,
-                _CLASSIFICATION_MAX_RETRIES,
+                max_retries,
                 wait,
                 exc,
             )

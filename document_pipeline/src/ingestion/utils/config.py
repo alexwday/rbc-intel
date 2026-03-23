@@ -268,6 +268,118 @@ def get_xlsx_classification_retry_delay() -> float:
     return float(os.getenv("XLSX_CLASSIFICATION_RETRY_DELAY_SECONDS", "2.0"))
 
 
+def get_pdf_classification_max_retries() -> int:
+    """Get max retries for PDF page continuation classification.
+
+    Returns: int — default 5.
+    """
+    return int(os.getenv("PDF_CLASSIFICATION_MAX_RETRIES", "5"))
+
+
+def get_pdf_classification_retry_delay() -> float:
+    """Get base backoff delay for PDF classification retries.
+
+    Returns: float — default 2.0.
+    """
+    return float(os.getenv("PDF_CLASSIFICATION_RETRY_DELAY_SECONDS", "2.0"))
+
+
+def get_pdf_vision_max_retries() -> int:
+    """Get max retries for PDF vision extraction calls.
+
+    Returns: int — default 3.
+    """
+    return int(os.getenv("PDF_VISION_MAX_RETRIES", "3"))
+
+
+def get_pdf_vision_retry_delay() -> float:
+    """Get base backoff delay for PDF vision retries.
+
+    Returns: float — default 2.0.
+    """
+    return float(os.getenv("PDF_VISION_RETRY_DELAY_SECONDS", "2.0"))
+
+
+def get_docx_classification_max_retries() -> int:
+    """Get max retries for DOCX page continuation classification.
+
+    Returns: int — default 5.
+    """
+    return int(os.getenv("DOCX_CLASSIFICATION_MAX_RETRIES", "5"))
+
+
+def get_docx_classification_retry_delay() -> float:
+    """Get base backoff delay for DOCX classification retries.
+
+    Returns: float — default 2.0.
+    """
+    return float(os.getenv("DOCX_CLASSIFICATION_RETRY_DELAY_SECONDS", "2.0"))
+
+
+def get_docx_vision_max_retries() -> int:
+    """Get max retries for DOCX vision extraction calls.
+
+    Returns: int — default 3.
+    """
+    return int(os.getenv("DOCX_VISION_MAX_RETRIES", "3"))
+
+
+def get_docx_vision_retry_delay() -> float:
+    """Get base backoff delay for DOCX vision retries.
+
+    Returns: float — default 2.0.
+    """
+    return float(os.getenv("DOCX_VISION_RETRY_DELAY_SECONDS", "2.0"))
+
+
+def get_pptx_classification_max_retries() -> int:
+    """Get max retries for PPTX slide classification.
+
+    Returns: int — default 3.
+    """
+    return int(os.getenv("PPTX_CLASSIFICATION_MAX_RETRIES", "3"))
+
+
+def get_pptx_classification_retry_delay() -> float:
+    """Get base backoff delay for PPTX classification retries.
+
+    Returns: float — default 2.0.
+    """
+    return float(os.getenv("PPTX_CLASSIFICATION_RETRY_DELAY_SECONDS", "2.0"))
+
+
+def get_pptx_vision_max_retries() -> int:
+    """Get max retries for PPTX vision extraction calls.
+
+    Returns: int — default 3.
+    """
+    return int(os.getenv("PPTX_VISION_MAX_RETRIES", "3"))
+
+
+def get_pptx_vision_retry_delay() -> float:
+    """Get base backoff delay for PPTX vision retries.
+
+    Returns: float — default 2.0.
+    """
+    return float(os.getenv("PPTX_VISION_RETRY_DELAY_SECONDS", "2.0"))
+
+
+def get_xlsx_vision_max_retries() -> int:
+    """Get max retries for XLSX vision extraction calls.
+
+    Returns: int — default 3.
+    """
+    return int(os.getenv("XLSX_VISION_MAX_RETRIES", "3"))
+
+
+def get_xlsx_vision_retry_delay() -> float:
+    """Get base backoff delay for XLSX vision retries.
+
+    Returns: float — default 2.0.
+    """
+    return float(os.getenv("XLSX_VISION_RETRY_DELAY_SECONDS", "2.0"))
+
+
 def get_data_source_path() -> str:
     """Get the base path for data source folders.
 
