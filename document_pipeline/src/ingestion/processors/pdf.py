@@ -527,6 +527,7 @@ def _default_page_metadata() -> dict[str, bool]:
     """Return default metadata for the first page (no previous content)."""
     return {
         "continued_from_previous_page": False,
+        "section_continuation_detected": False,
         "repeated_header_detected": False,
         "repeated_footer_detected": False,
         "table_continuation_detected": False,
@@ -584,6 +585,7 @@ def _classify_page_continuation(
 
     return {
         "continued_from_previous_page": continued,
+        "section_continuation_detected": continued and not table_cont,
         "repeated_header_detected": header_rep,
         "repeated_footer_detected": footer_rep,
         "table_continuation_detected": table_cont,

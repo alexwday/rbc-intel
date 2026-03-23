@@ -39,16 +39,16 @@ def test_file_record_supported_xlsx():
     assert record.supported is True
 
 
-def test_file_record_supported_csv():
-    """CSV files are supported."""
+def test_file_record_unsupported_csv():
+    """CSV files are not supported (no processor yet)."""
     record = make_file_record(filetype="csv")
-    assert record.supported is True
+    assert record.supported is False
 
 
-def test_file_record_supported_md():
-    """Markdown files are supported."""
+def test_file_record_unsupported_md():
+    """Markdown files are not supported (no processor yet)."""
     record = make_file_record(filetype="md")
-    assert record.supported is True
+    assert record.supported is False
 
 
 def test_file_record_unsupported_extension():

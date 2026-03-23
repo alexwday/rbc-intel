@@ -24,7 +24,6 @@ def _stub_classification(**overrides):
     result = {
         "slide_type_guess": "content_slide",
         "contains_chart": False,
-        "chart_count_estimate": 0,
         "contains_dashboard": False,
         "contains_comparison_layout": False,
         "has_dense_visual_content": False,

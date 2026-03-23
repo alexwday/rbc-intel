@@ -29,6 +29,7 @@ def test_build_context_prompt_truncates_long_content():
     "ingestion.processors.pdf._classify_continuation_with_retry",
     return_value={
         "continued_from_previous_page": False,
+        "section_continuation_detected": False,
         "repeated_header_detected": False,
         "repeated_footer_detected": False,
         "table_continuation_detected": False,
@@ -64,6 +65,7 @@ def test_process_pdf_success(
     "ingestion.processors.pdf._classify_continuation_with_retry",
     return_value={
         "continued_from_previous_page": False,
+        "section_continuation_detected": False,
         "repeated_header_detected": False,
         "repeated_footer_detected": False,
         "table_continuation_detected": False,
@@ -86,6 +88,7 @@ def test_process_pdf_empty_document(mock_open, _dpi, _prompt, _classify):
     "ingestion.processors.pdf._classify_continuation_with_retry",
     return_value={
         "continued_from_previous_page": False,
+        "section_continuation_detected": False,
         "repeated_header_detected": False,
         "repeated_footer_detected": False,
         "table_continuation_detected": False,
@@ -111,6 +114,7 @@ def test_process_pdf_render_failure_becomes_failed_page(
     "ingestion.processors.pdf._classify_continuation_with_retry",
     return_value={
         "continued_from_previous_page": False,
+        "section_continuation_detected": False,
         "repeated_header_detected": False,
         "repeated_footer_detected": False,
         "table_continuation_detected": False,
@@ -142,6 +146,7 @@ def test_process_pdf_partial_failure(
     "ingestion.processors.pdf._classify_continuation_with_retry",
     return_value={
         "continued_from_previous_page": False,
+        "section_continuation_detected": False,
         "repeated_header_detected": False,
         "repeated_footer_detected": False,
         "table_continuation_detected": False,

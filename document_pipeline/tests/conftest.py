@@ -6,7 +6,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _set_pipeline_env(monkeypatch):
     """Ensure pipeline env vars are set for tests."""
-    monkeypatch.setenv("ACCEPTED_FILETYPES", "pdf,docx,pptx,xlsx,csv,md")
+    monkeypatch.setenv("ACCEPTED_FILETYPES", "pdf,docx,pptx,xlsx")
     monkeypatch.setenv("MAX_WORKERS", "4")
     monkeypatch.setenv("RETENTION_COUNT", "31")
     monkeypatch.setenv("EXTRACTION_MODEL", "gpt-5-mini")

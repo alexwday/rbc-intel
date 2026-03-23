@@ -557,7 +557,6 @@ def _parse_slide_classification(
     return {
         "slide_type_guess": slide_type,
         "contains_chart": bool(contains_chart),
-        "chart_count_estimate": 0,
         "contains_dashboard": bool(contains_dashboard),
         "contains_comparison_layout": bool(contains_comparison),
         "has_dense_visual_content": bool(has_dense_visual),
