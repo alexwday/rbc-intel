@@ -40,7 +40,9 @@ def test_build_context_prompt_truncates_long_content():
 @patch("ingestion.processors.pdf.render_page")
 @patch("ingestion.processors.pdf.open_rendered_pdf")
 @patch("ingestion.processors.pdf.process_page")
-def test_process_pdf_success(mock_page, mock_open, mock_render, _dpi, _prompt, _classify):
+def test_process_pdf_success(
+    mock_page, mock_open, mock_render, _dpi, _prompt, _classify
+):
     """Processes all pages and returns ExtractionResult."""
     mock_open.return_value = make_rendered_pdf(2)
     mock_render.side_effect = [b"page1", b"page2"]

@@ -1,5 +1,6 @@
 """XLSX processor — classifies each sheet for dense-table handling."""
 
+import base64
 import json
 import logging
 import time
@@ -30,9 +31,143 @@ from ..utils.xlsx_layout import (
     build_sheet_regions,
     select_dense_table_region,
 )
-from .vision import call_vision, parse_vision_response
 
 logger = logging.getLogger(__name__)
+
+_MAX_RETRIES = 3
+_RETRY_DELAY_S = 2.0
+
+RETRYABLE_ERRORS = (
+    openai.RateLimitError,
+    openai.APITimeoutError,
+    openai.APIConnectionError,
+    openai.InternalServerError,
+)
+
+
+def parse_tool_arguments(response: dict) -> dict:
+    """Extract parsed tool-call arguments from an LLM response.
+
+    Params: response (dict). Returns: dict.
+    """
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("LLM response missing choices")
+
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        raise ValueError("LLM response missing message payload")
+
+    tool_calls = message.get("tool_calls")
+    if not isinstance(tool_calls, list) or not tool_calls:
+        raise ValueError("LLM response missing tool calls")
+
+    function_data = tool_calls[0].get("function")
+    if not isinstance(function_data, dict):
+        raise ValueError("LLM response missing function payload")
+
+    arguments = function_data.get("arguments")
+    if not isinstance(arguments, str):
+        raise ValueError("LLM response missing function arguments")
+
+    parsed = json.loads(arguments)
+    if not isinstance(parsed, dict):
+        raise ValueError("LLM tool arguments must decode to an object")
+    return parsed
+
+
+def parse_vision_response(response: dict) -> tuple[str, str]:
+    """Parse the first tool call into page title and content.
+
+    Params: response (dict). Returns: tuple[str, str].
+    """
+    parsed = parse_tool_arguments(response)
+    page_title = parsed.get("page_title")
+    content = parsed.get("content")
+    if not isinstance(page_title, str) or not isinstance(content, str):
+        raise ValueError(
+            "LLM tool arguments missing string page_title/content"
+        )
+    return page_title, content
+
+
+def call_vision(llm, img_bytes, prompt, tool_choice, detail="auto") -> tuple:
+    """Send a page image to the LLM and extract content.
+
+    Builds a multi-modal message with system prompt and user
+    prompt containing the base64 image. Parses tool call
+    response for page_title and content. Retries on transient
+    OpenAI errors.
+
+    Params:
+        llm: LLMClient instance
+        img_bytes: PNG image bytes
+        prompt: Loaded prompt dict with system_prompt,
+            user_prompt, stage, tools, tool_choice
+        tool_choice: Tool choice override (prompt value
+            or constructed dict)
+        detail: Vision detail level — "auto" (default),
+            "low", or "high"
+
+    Returns:
+        tuple of (page_title, content)
+
+    Example:
+        >>> title, md = call_vision(llm, img, p, "required")
+        >>> title
+        "Q3 Financial Results"
+    """
+    b64 = base64.b64encode(img_bytes).decode()
+
+    messages = [
+        {"role": "system", "content": prompt["system_prompt"]},
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{b64}",
+                        "detail": detail,
+                    },
+                },
+                {
+                    "type": "text",
+                    "text": prompt["user_prompt"],
+                },
+            ],
+        },
+    ]
+
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            response = llm.call(
+                messages=messages,
+                stage=prompt["stage"],
+                tools=prompt["tools"],
+                tool_choice=tool_choice,
+            )
+            return parse_vision_response(response)
+
+        except RETRYABLE_ERRORS as exc:
+            if attempt == _MAX_RETRIES:
+                logger.error(
+                    "Vision call failed after %d attempts: %s",
+                    _MAX_RETRIES,
+                    exc,
+                )
+                raise
+            wait = _RETRY_DELAY_S * attempt
+            logger.warning(
+                "Vision retry %d/%d after %.1fs: %s",
+                attempt,
+                _MAX_RETRIES,
+                wait,
+                exc,
+            )
+            time.sleep(wait)
+    raise RuntimeError("Vision call exited retry loop without a response")
+
 
 _PREVIEW_HEAD_LINES = 24
 _PREVIEW_TAIL_LINES = 10
@@ -1221,37 +1356,9 @@ def _count_tokens(text: str, model: str) -> int:
     return len(_get_encoder(model).encode(text))
 
 
-def _extract_tool_arguments(response: dict[str, Any]) -> dict[str, Any]:
-    """Extract parsed tool-call arguments from an LLM response."""
-    choices = response.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise ValueError("LLM response missing choices")
-
-    message = choices[0].get("message")
-    if not isinstance(message, dict):
-        raise ValueError("LLM response missing message payload")
-
-    tool_calls = message.get("tool_calls")
-    if not isinstance(tool_calls, list) or not tool_calls:
-        raise ValueError("LLM response missing tool calls")
-
-    function_data = tool_calls[0].get("function")
-    if not isinstance(function_data, dict):
-        raise ValueError("LLM response missing function payload")
-
-    arguments = function_data.get("arguments")
-    if not isinstance(arguments, str):
-        raise ValueError("LLM response missing function arguments")
-
-    parsed = json.loads(arguments)
-    if not isinstance(parsed, dict):
-        raise ValueError("LLM tool arguments must decode to an object")
-    return parsed
-
-
 def _parse_classification_response(response: dict[str, Any]) -> dict[str, Any]:
     """Parse the XLSX sheet classification tool response."""
-    parsed = _extract_tool_arguments(response)
+    parsed = parse_tool_arguments(response)
 
     handling_mode = parsed.get("handling_mode")
     contains_dense_table = parsed.get("contains_dense_table")
