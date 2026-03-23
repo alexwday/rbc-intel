@@ -1,0 +1,50 @@
+stage: dense_table_description
+version: "1.0"
+description: >
+  Merge batched dense table column summaries into a concise
+  dataset-level description and retrieval-oriented example queries.
+
+system_prompt: >
+  You are a data analyst. You summarize structured datasets
+  concisely and precisely for search and retrieval. Always
+  use the provided tool to respond.
+
+user_prompt: >
+  Summarize this dense table dataset using the provided
+  column summaries and role assignments.
+
+
+  Write a 2-4 sentence description that captures what the
+  dataset contains, its apparent scope or time range, and
+  the kinds of questions it supports.
+
+
+  Suggest 3-5 natural language questions that someone could
+  answer using this data.
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: summarize_dense_table_batches
+      description: >
+        Write a dataset-level summary for a dense table and
+        propose example queries.
+      parameters:
+        type: object
+        properties:
+          description:
+            type: string
+            description: >
+              2-4 sentence summary of the dataset including scope,
+              content type, and analytical value.
+          sample_queries:
+            type: array
+            items:
+              type: string
+            description: >
+              3-5 natural language questions the data can answer.
+        required:
+          - description
+          - sample_queries

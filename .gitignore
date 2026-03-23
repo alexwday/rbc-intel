@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Linter caches
+.pylint_home/
+.pylint.d/
+
+# Claude Code memory (personal)
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (large documents should not be committed)
+data/
+input/
+output/
+*.pdf
+*.docx
+*.pptx
+*.xlsx
+!docs/**
+
+# Logs
+logs/
+
+# Database
+*.sql.bak

@@ -1,0 +1,65 @@
+stage: extraction
+version: "1.0"
+description: >
+  Structured extraction for XLSX chart and image regions. Works for either
+  worksheet visual metadata supplied as text or embedded image bytes supplied
+  as a multimodal input.
+
+system_prompt: >
+  You are a worksheet visual extraction agent. Convert the provided worksheet
+  chart or image content into structured markdown using the tool. When the user
+  message includes structured chart metadata, treat that metadata as the source
+  of truth. When an image is included, extract directly from the image.
+
+user_prompt: >
+  Extract the worksheet visual content into structured markdown. Use the
+  extract_page_content tool to respond.
+
+
+  ## Page title
+
+  Infer a concise visual title or main topic from the chart/image content.
+
+
+  ## Content structure
+
+  Organize the extracted result using the same style as document-page visual
+  extraction. Only include sections that have content. Prefer ### Charts and
+  Visuals for charts, graphs, diagrams, dashboards, and image-heavy visuals.
+  Use ### Text only for framing notes or visible labels that do not belong in
+  a table or chart description.
+
+
+  ## Rules
+
+  - Preserve chart titles, axis labels, legend entries, and readable numeric
+    values exactly when they are available in the source details.
+
+  - If the visual contains a table-like grid, reproduce it as a markdown pipe
+    table inside ### Tables.
+
+  - If the content is primarily visual, describe it in a systematic, retrieval-
+    friendly way rather than giving a loose summary.
+
+  - Respond with ONLY the structured markdown content returned through the tool.
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: extract_page_content
+      description: Extract structured content from a worksheet visual region
+      parameters:
+        type: object
+        properties:
+          page_title:
+            type: string
+            description: Visual title or main topic inferred from the content
+          content:
+            type: string
+            description: >
+              Structured markdown describing the worksheet visual content
+        required:
+          - page_title
+          - content

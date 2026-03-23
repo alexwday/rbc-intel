@@ -1,0 +1,94 @@
+stage: xlsx_classification
+version: "2.0"
+description: >
+  Choose the downstream handling mode for an Excel worksheet:
+  page-like report unit or dense table candidate.
+
+system_prompt: >
+  You are an Excel worksheet handling agent. Your job is to
+  choose the downstream handling mode the pipeline should use.
+  The question is not whether a worksheet contains a table.
+  The question is whether the worksheet should be handled as
+  one page-like report unit or as a dense row-level dataset.
+  Financial statements, regulatory disclosures, Pillar 3
+  schedules, and printable report pages are usually
+  page_like even when they are mostly tabular. Always use the
+  provided tool.
+
+user_prompt: >
+  Choose the downstream handling mode for this worksheet.
+
+  Return page_like when the worksheet is best summarized,
+  embedded, searched, and read as one coherent page or report
+  section. This includes printable financial statements,
+  regulatory disclosures, schedules, rollforwards, report
+  tables, and pages with titles, notes, footnotes, totals,
+  subtotals, or explanatory text.
+
+  Return dense_table_candidate only when the worksheet is
+  primarily a row-level dataset whose records should be
+  queried independently. This usually looks like a raw export,
+  transaction log, ledger, loan tape, account-level listing,
+  or operational detail dump where filtering, sorting, or
+  aggregating rows is more useful than reading the whole sheet
+  as a single page.
+
+  You will also receive local layout analysis showing detected
+  worksheet regions, any selected dense-table candidate bounds,
+  and a summary of framing content outside that candidate
+  region. Use that structural context to decide whether the
+  sheet behaves like one coherent report page or a row-level
+  dataset.
+
+  Important rules:
+  - A dense or large table alone is not enough for
+    dense_table_candidate.
+  - Do not choose dense_table_candidate from row counts, column
+    counts, or cell counts alone.
+  - If the sheet looks like a formatted report or disclosure
+    page, choose page_like even when it has many rows and
+    columns.
+  - Treat the inline token limit as a strong default: if the
+    sheet fits inline, prefer page_like unless it clearly
+    behaves like a raw row-level export.
+  - For published financial and regulatory reports,
+    dense_table_candidate should be rare.
+
+  Examples:
+  - Statement of Income with quarterly and annual columns,
+    totals, and footnotes -> page_like
+  - Pillar 3 exposure table with PD bands, explanatory notes,
+    and disclosure footnotes -> page_like
+  - Transaction export with one row per payment and many
+    homogeneous records -> dense_table_candidate
+  - Loan tape with one row per obligor and no report
+    narrative, notes, or page framing -> dense_table_candidate
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: classify_xlsx_sheet
+      description: >
+        Choose the downstream handling mode for the worksheet.
+      parameters:
+        type: object
+        properties:
+          handling_mode:
+            type: string
+            enum:
+              - page_like
+              - dense_table_candidate
+            description: >
+              Downstream handling mode for the worksheet.
+          confidence:
+            type: number
+            description: Confidence score between 0 and 1.
+          rationale:
+            type: string
+            description: Short explanation for the classification.
+        required:
+          - handling_mode
+          - confidence
+          - rationale

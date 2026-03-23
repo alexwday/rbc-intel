@@ -1,0 +1,49 @@
+stage: extraction
+version: "1.0"
+description: >
+  Vision-based extraction for rendered PPTX slides with
+  slide-aware reading order.
+
+system_prompt: >
+  You are a presentation slide extraction agent. Extract the
+  slide into structured markdown using the provided tool.
+  Slides may be title slides, agendas, chart slides,
+  dashboards, comparisons, or appendix/data slides. Always use
+  the tool.
+
+user_prompt: >
+  Extract ALL slide-significant content from this rendered
+  presentation slide image into structured markdown.
+
+  Read the slide in this order when applicable:
+  - title and subtitle
+  - primary chart, table, or visual
+  - supporting bullets and callouts
+  - footer, source, and disclaimers
+
+  Rules:
+  - Preserve chart titles, legends, labels, and visible values.
+  - Preserve dashboard KPI labels and grouping.
+  - Preserve table structure and comparison labels.
+  - Use the same markdown section structure as the standard
+    extraction pipeline.
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: extract_page_content
+      description: Extract structured content from a PPTX slide
+      parameters:
+        type: object
+        properties:
+          page_title:
+            type: string
+            description: Slide title or main topic inferred from content
+          content:
+            type: string
+            description: Structured markdown for the slide
+        required:
+          - page_title
+          - content

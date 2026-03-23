@@ -1,0 +1,140 @@
+stage: dense_table_description
+version: "2.0"
+description: >
+  Generate a human-readable description of a dense table
+  dataset for search indexing and embedding. Classifies
+  each column by its query role.
+
+system_prompt: >
+  You are a data analyst. You describe datasets concisely
+  and precisely for search and retrieval. You classify
+  columns by their role in downstream queries. Always use
+  the provided tool to respond.
+
+user_prompt: >
+  Describe this dense table dataset for search indexing.
+
+
+  Write a 2-4 sentence description that captures what this
+  dataset contains, its time range or scope if apparent,
+  and the kind of analysis it supports.
+
+
+  For each column, write a short description of what it
+  contains and how it might be used.
+
+  In all structured outputs, refer to columns by their
+  spreadsheet position letters (A, B, C, ...) rather than
+  by name alone. Include both the position and the matching
+  column name in column_descriptions.
+
+
+  Classify every column into exactly one role. Use the
+  column profiles (dtype, unique count, value distribution)
+  to inform your classification:
+
+  - filter: Low-cardinality categorical columns suitable
+    for WHERE clauses and GROUP BY — typically status,
+    type, category, channel, or branch fields with a
+    manageable set of distinct values. Date columns used
+    for range filtering also go here.
+
+  - identifier: Primary keys or unique record identifiers
+    that distinguish individual rows — typically IDs,
+    reference codes, or account numbers with unique or
+    near-unique values.
+
+  - measure: Numeric columns suitable for aggregation
+    (SUM, AVG, MIN, MAX) — typically amounts, counts,
+    scores, or rates that a user would want to total
+    or compare.
+
+  - text_content: Free-text or high-cardinality descriptive
+    fields not suitable for exact filtering — typically
+    names, descriptions, comments, or notes.
+
+
+  Suggest 3-5 natural language questions that someone could
+  answer using this data.
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: describe_dense_table
+      description: >
+        Describe a dense table dataset for search and embedding.
+      parameters:
+        type: object
+        properties:
+          description:
+            type: string
+            description: >
+              2-4 sentence summary of the dataset including scope,
+              content type, and analytical value.
+          column_descriptions:
+            type: array
+            items:
+              type: object
+              properties:
+                position:
+                  type: string
+                  description: Spreadsheet column position letter
+                name:
+                  type: string
+                  description: Column header name
+                description:
+                  type: string
+                  description: >
+                    What this column contains and how it is used.
+              required:
+                - position
+                - name
+                - description
+            description: Per-column position, name, and description.
+          filter_columns:
+            type: array
+            items:
+              type: string
+            description: >
+              Column positions suitable for filtering and grouping in
+              queries. Low-cardinality categoricals and date
+              range columns.
+          identifier_columns:
+            type: array
+            items:
+              type: string
+            description: >
+              Column positions for primary key or unique identifier
+              fields that
+              distinguish individual rows.
+          measure_columns:
+            type: array
+            items:
+              type: string
+            description: >
+              Column positions for numeric columns suitable for aggregation
+              (SUM, AVG, MIN, MAX).
+          text_content_columns:
+            type: array
+            items:
+              type: string
+            description: >
+              Column positions for free-text or high-cardinality
+              descriptive columns
+              not suitable for exact filtering.
+          sample_queries:
+            type: array
+            items:
+              type: string
+            description: >
+              3-5 natural language questions the data can answer.
+        required:
+          - description
+          - column_descriptions
+          - filter_columns
+          - identifier_columns
+          - measure_columns
+          - text_content_columns
+          - sample_queries

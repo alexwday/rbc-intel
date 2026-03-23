@@ -1,0 +1,110 @@
+stage: pptx_classification
+version: "1.0"
+description: >
+  Classify presentation slide type and visual content characteristics
+  from extracted markdown content.
+
+system_prompt: >
+  You are a presentation content analyst. Given the slide number,
+  title, and extracted markdown content of a presentation slide,
+  classify the slide type and identify its visual content
+  characteristics. Always use the provided tool.
+
+user_prompt: >
+  Classify this presentation slide based on its extracted content.
+
+  Slide types (choose one):
+  - title_slide: Opening or section divider slide with a
+    company name, presentation title, or section heading.
+    Minimal body content — no data tables, no charts, at most
+    a subtitle, date, or short tagline.
+  - agenda_slide: Meeting agenda, table of contents, or topic
+    overview listing the presentation's structure.
+  - appendix_data_slide: Supplementary reference material,
+    backup data tables, methodology notes, or glossary pages
+    placed after the main narrative.
+  - dashboard_slide: KPI dashboard, scorecard, or performance
+    summary with multiple metrics, charts, or indicator panels
+    arranged for at-a-glance monitoring.
+  - comparison_slide: Side-by-side comparison, benchmarking,
+    or versus analysis contrasting two or more items.
+  - chart_slide: Slide whose primary content is one or more
+    charts, graphs, or data visualizations with supporting
+    commentary.
+  - content_slide: General analytical or narrative content —
+    text, bullets, tables, or a mix — that does not fit the
+    more specific types above.
+
+  Visual content flags:
+  - contains_chart: True if the slide has any chart, graph,
+    or data visualization.
+  - contains_dashboard: True if the slide presents a dashboard
+    layout with multiple KPIs, metrics, or chart panels.
+  - contains_comparison_layout: True if the slide uses a
+    side-by-side or versus-style comparison structure.
+  - has_dense_visual_content: True if the slide is visually
+    dense with multiple charts, tables, or packed data.
+
+  Use the slide number, title, and content together. Do not
+  rely on keywords alone — consider the overall structure and
+  purpose of the slide.
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: classify_slide
+      description: >
+        Classify presentation slide type and content
+        characteristics.
+      parameters:
+        type: object
+        properties:
+          slide_type:
+            type: string
+            enum:
+              - title_slide
+              - agenda_slide
+              - appendix_data_slide
+              - dashboard_slide
+              - comparison_slide
+              - chart_slide
+              - content_slide
+            description: The primary classification of this slide.
+          contains_chart:
+            type: boolean
+            description: >
+              True if the slide contains one or more charts,
+              graphs, or data visualizations.
+          contains_dashboard:
+            type: boolean
+            description: >
+              True if the slide presents a dashboard layout with
+              multiple KPIs, metrics, or chart panels.
+          contains_comparison_layout:
+            type: boolean
+            description: >
+              True if the slide uses a side-by-side or
+              versus-style comparison structure.
+          has_dense_visual_content:
+            type: boolean
+            description: >
+              True if the slide is visually dense with multiple
+              charts, tables, or packed data elements.
+          confidence:
+            type: number
+            description: Classification confidence between 0 and 1.
+          rationale:
+            type: string
+            description: >
+              Brief explanation of why this classification was
+              chosen.
+        required:
+          - slide_type
+          - contains_chart
+          - contains_dashboard
+          - contains_comparison_layout
+          - has_dense_visual_content
+          - confidence
+          - rationale

@@ -1,0 +1,24 @@
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+logs/
+
+# Pipeline runtime
+processing/
+archive/
+
+# Local test data
+test_data/
+
+# Environment (contains secrets)
+.env

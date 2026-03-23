@@ -1,0 +1,3 @@
+from typing import Any
+
+def connect(*args: Any, **kwargs: Any) -> Any: ...
