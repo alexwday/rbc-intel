@@ -10,12 +10,22 @@ from ingestion.utils.config import (
     get_auth_mode,
     get_data_source_path,
     get_database_config,
+    get_database_schema,
     get_dense_table_description_max_prompt_tokens,
+    get_enrichment_max_retries,
+    get_enrichment_retry_delay,
+    get_finalization_embedding_batch_size,
+    get_finalization_embedding_model,
+    get_finalization_max_classification_pages,
+    get_finalization_max_retries,
+    get_finalization_retry_delay,
     get_llm_endpoint,
     get_max_workers,
     get_oauth_config,
     get_retention_count,
     get_stage_model_config,
+    get_storage_master_dir,
+    get_storage_push_to_postgres,
     get_vision_dpi_scale,
     get_xlsx_classification_max_retries,
     get_xlsx_classification_retry_delay,
@@ -175,6 +185,19 @@ def test_get_database_config_optional_password(monkeypatch):
     assert config["password"] == ""
 
 
+def test_get_database_schema_defaults_public(monkeypatch):
+    """Schema defaults to public when unset."""
+    monkeypatch.delenv("DB_SCHEMA", raising=False)
+    assert get_database_schema() == "public"
+
+
+def test_get_database_schema_rejects_invalid_name(monkeypatch):
+    """Schema names are restricted to safe SQL identifiers."""
+    monkeypatch.setenv("DB_SCHEMA", "bad-name")
+    with pytest.raises(ValueError, match="DB_SCHEMA"):
+        get_database_schema()
+
+
 def test_get_accepted_filetypes(monkeypatch):
     """Parses comma-separated list from env."""
     monkeypatch.setenv("ACCEPTED_FILETYPES", "pdf,docx,csv")
@@ -213,6 +236,37 @@ def test_get_retention_count_missing(monkeypatch):
     monkeypatch.delenv("RETENTION_COUNT", raising=False)
     with pytest.raises(ValueError, match="RETENTION_COUNT"):
         get_retention_count()
+
+
+def test_get_storage_master_dir_defaults_under_project(monkeypatch):
+    """Storage masters default under the project storage directory."""
+    monkeypatch.delenv("STORAGE_MASTER_DIR", raising=False)
+    assert get_storage_master_dir().endswith("/storage/masters")
+
+
+def test_get_storage_master_dir_uses_env(monkeypatch):
+    """Custom storage master dir is returned as-is."""
+    monkeypatch.setenv("STORAGE_MASTER_DIR", "/tmp/storage-masters")
+    assert get_storage_master_dir() == "/tmp/storage-masters"
+
+
+def test_get_storage_push_to_postgres_false_by_default(monkeypatch):
+    """Storage push defaults to disabled."""
+    monkeypatch.delenv("STORAGE_PUSH_TO_POSTGRES", raising=False)
+    assert get_storage_push_to_postgres() is False
+
+
+def test_get_storage_push_to_postgres_accepts_true(monkeypatch):
+    """Boolean-like true values enable Postgres sync."""
+    monkeypatch.setenv("STORAGE_PUSH_TO_POSTGRES", "yes")
+    assert get_storage_push_to_postgres() is True
+
+
+def test_get_storage_push_to_postgres_rejects_invalid(monkeypatch):
+    """Invalid boolean-like values raise."""
+    monkeypatch.setenv("STORAGE_PUSH_TO_POSTGRES", "sometimes")
+    with pytest.raises(ValueError, match="STORAGE_PUSH_TO_POSTGRES"):
+        get_storage_push_to_postgres()
 
 
 def test_get_stage_model_config_complete(monkeypatch):
@@ -287,11 +341,10 @@ def test_get_xlsx_sheet_token_limit(monkeypatch):
     assert get_xlsx_sheet_token_limit() == 12000
 
 
-def test_get_xlsx_sheet_token_limit_missing(monkeypatch):
-    """Raises when not set."""
+def test_get_xlsx_sheet_token_limit_default(monkeypatch):
+    """Uses the default inline XLSX sheet token limit."""
     monkeypatch.delenv("XLSX_SHEET_TOKEN_LIMIT", raising=False)
-    with pytest.raises(ValueError, match="XLSX_SHEET_TOKEN_LIMIT"):
-        get_xlsx_sheet_token_limit()
+    assert get_xlsx_sheet_token_limit() == 50000
 
 
 def test_get_xlsx_classification_max_retries_default(monkeypatch):
@@ -337,3 +390,92 @@ def test_get_dense_table_description_max_prompt_tokens_override(
     """Reads the dense table prompt budget override from env."""
     monkeypatch.setenv("DENSE_TABLE_DESCRIPTION_MAX_PROMPT_TOKENS", "6400")
     assert get_dense_table_description_max_prompt_tokens() == 6400
+
+
+def test_get_enrichment_max_retries_default(monkeypatch):
+    """Uses the default enrichment retry count."""
+    monkeypatch.delenv("ENRICHMENT_MAX_RETRIES", raising=False)
+    assert get_enrichment_max_retries() == 3
+
+
+def test_get_enrichment_max_retries_override(monkeypatch):
+    """Reads enrichment retry count from env."""
+    monkeypatch.setenv("ENRICHMENT_MAX_RETRIES", "5")
+    assert get_enrichment_max_retries() == 5
+
+
+def test_get_enrichment_retry_delay_default(monkeypatch):
+    """Uses the default enrichment retry delay."""
+    monkeypatch.delenv("ENRICHMENT_RETRY_DELAY_SECONDS", raising=False)
+    assert get_enrichment_retry_delay() == 2.0
+
+
+def test_get_enrichment_retry_delay_override(monkeypatch):
+    """Reads enrichment retry delay from env."""
+    monkeypatch.setenv("ENRICHMENT_RETRY_DELAY_SECONDS", "1.5")
+    assert get_enrichment_retry_delay() == 1.5
+
+
+def test_get_finalization_max_retries_default(monkeypatch):
+    """Uses the default finalization retry count."""
+    monkeypatch.delenv("FINALIZATION_MAX_RETRIES", raising=False)
+    assert get_finalization_max_retries() == 3
+
+
+def test_get_finalization_max_retries_override(monkeypatch):
+    """Reads finalization retry count from env."""
+    monkeypatch.setenv("FINALIZATION_MAX_RETRIES", "4")
+    assert get_finalization_max_retries() == 4
+
+
+def test_get_finalization_retry_delay_default(monkeypatch):
+    """Uses the default finalization retry delay."""
+    monkeypatch.delenv("FINALIZATION_RETRY_DELAY_SECONDS", raising=False)
+    assert get_finalization_retry_delay() == 2.0
+
+
+def test_get_finalization_retry_delay_override(monkeypatch):
+    """Reads finalization retry delay from env."""
+    monkeypatch.setenv("FINALIZATION_RETRY_DELAY_SECONDS", "1.25")
+    assert get_finalization_retry_delay() == 1.25
+
+
+def test_get_finalization_embedding_batch_size_default(monkeypatch):
+    """Uses the default finalization embedding batch size."""
+    monkeypatch.delenv("FINALIZATION_EMBEDDING_BATCH_SIZE", raising=False)
+    assert get_finalization_embedding_batch_size() == 100
+
+
+def test_get_finalization_embedding_batch_size_override(monkeypatch):
+    """Reads finalization embedding batch size from env."""
+    monkeypatch.setenv("FINALIZATION_EMBEDDING_BATCH_SIZE", "25")
+    assert get_finalization_embedding_batch_size() == 25
+
+
+def test_get_finalization_embedding_model_default(monkeypatch):
+    """Uses the default finalization embedding model."""
+    monkeypatch.delenv("FINALIZATION_EMBEDDING_MODEL", raising=False)
+    assert get_finalization_embedding_model() == "text-embedding-3-large"
+
+
+def test_get_finalization_embedding_model_override(monkeypatch):
+    """Reads finalization embedding model from env."""
+    monkeypatch.setenv(
+        "FINALIZATION_EMBEDDING_MODEL", "text-embedding-3-small"
+    )
+    assert get_finalization_embedding_model() == "text-embedding-3-small"
+
+
+def test_get_finalization_max_classification_pages_default(monkeypatch):
+    """Uses the default finalization classification page cap."""
+    monkeypatch.delenv(
+        "FINALIZATION_MAX_CLASSIFICATION_PAGES",
+        raising=False,
+    )
+    assert get_finalization_max_classification_pages() == 100
+
+
+def test_get_finalization_max_classification_pages_override(monkeypatch):
+    """Reads finalization classification page cap from env."""
+    monkeypatch.setenv("FINALIZATION_MAX_CLASSIFICATION_PAGES", "75")
+    assert get_finalization_max_classification_pages() == 75

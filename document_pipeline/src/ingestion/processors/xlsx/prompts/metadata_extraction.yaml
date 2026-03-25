@@ -1,0 +1,67 @@
+stage: finalization
+version: "1.0"
+description: >
+  Extract workbook-level metadata from the opening sheets of an XLSX file.
+
+system_prompt: >
+  You are a document metadata analyst. Review the ordered opening pages and
+  extract the most reliable document-level metadata you can find. Always use
+  the provided tool.
+
+user_prompt: |
+  Extract document metadata for this file.
+
+  ## Document Context
+  - File type: {filetype}
+  - Total pages: {total_pages}
+
+  ## Opening Pages
+  {page_summaries_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: extract_document_metadata
+      description: Extract document-level metadata
+      parameters:
+        type: object
+        properties:
+          title:
+            type: string
+            description: >
+              The full document title, not just a section heading.
+              Prefer the most complete title that identifies the
+              document (e.g. "Northbridge Bank Q1 2026 Risk &
+              Performance Pack" over "Risk dashboard").
+          authors:
+            type: array
+            items:
+              type: string
+            description: >
+              Authors or issuing organization. Look in headers,
+              footers, cover pages, and metadata sections.
+          publication_date:
+            type: string
+            description: >
+              Publication date or reporting period. Look in
+              headers, footers, title pages, and content body.
+              Use the most specific date found (e.g. "Q1 2026",
+              "2026-03-31", "March 2026").
+          document_type:
+            type: string
+            description: >
+              Document type or category (e.g. "risk report",
+              "quarterly earnings", "policy document").
+          abstract:
+            type: string
+            description: >
+              Brief abstract or executive summary if present.
+              Empty string if no abstract section exists.
+        required:
+          - title
+          - authors
+          - publication_date
+          - document_type
+          - abstract

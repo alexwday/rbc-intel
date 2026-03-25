@@ -12,7 +12,7 @@ from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from openpyxl.drawing.image import Image as XLImage
 
-from ingestion.processors.xlsx import (
+from ingestion.processors.xlsx.processor import (
     _FallbackEncoding,
     _FallbackTiktoken,
     _append_visual_descriptions,
@@ -39,7 +39,7 @@ from ingestion.processors.xlsx import (
     _visual_overlaps_region,
     process_xlsx,
 )
-from ingestion.utils.xlsx_layout import SheetRegion
+from ingestion.processors.xlsx.layout import SheetRegion
 
 
 def _make_fake_encoding() -> MagicMock:
@@ -87,11 +87,11 @@ def _make_visual_prompt() -> dict:
     }
 
 
-def _make_prompt_loader(name: str) -> dict:
+def _make_prompt_loader(name: str, _prompts_dir=None) -> dict:
     """Return the right prompt fixture for the requested XLSX prompt name."""
-    if name == "xlsx_sheet_classification":
+    if name == "sheet_classification":
         return _make_prompt()
-    if name == "xlsx_visual_extraction_vision":
+    if name == "visual_extraction":
         return _make_visual_prompt()
     raise AssertionError(f"Unexpected prompt requested: {name}")
 
@@ -289,11 +289,11 @@ def test_build_used_range_single_cell():
 
 
 @patch(
-    "ingestion.processors.xlsx.tiktoken.get_encoding",
+    "ingestion.processors.xlsx.processor.tiktoken.get_encoding",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     side_effect=KeyError("missing model mapping"),
 )
 def test_get_encoder_falls_back_to_o200k_base(
@@ -318,7 +318,10 @@ def test_fallback_tiktoken_provides_minimal_encoder():
     assert len(tokens) == 5
 
 
-@patch("ingestion.processors.xlsx.import_module", side_effect=ImportError)
+@patch(
+    "ingestion.processors.xlsx.processor.import_module",
+    side_effect=ImportError,
+)
 def test_load_tiktoken_falls_back_on_import_error(_import_module):
     """Import errors fall back to the local tokenizer shim."""
     tokenizer = _load_tiktoken()
@@ -487,7 +490,7 @@ def test_build_chart_context_reports_when_points_are_unavailable():
     workbook.close()
 
 
-@patch("ingestion.processors.xlsx.time.sleep")
+@patch("ingestion.processors.xlsx.processor.time.sleep")
 def test_call_visual_prompt_with_retry_raises_after_exhaustion(mock_sleep):
     """Visual description retries eventually fail the workbook cleanly."""
     llm = MagicMock()
@@ -505,7 +508,7 @@ def test_call_visual_prompt_with_retry_raises_after_exhaustion(mock_sleep):
 
 
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_classification_max_retries",
+    "ingestion.processors.xlsx.processor.get_xlsx_classification_max_retries",
     return_value=0,
 )
 def test_call_visual_prompt_with_retry_raises_when_retries_disabled(_retries):
@@ -619,7 +622,7 @@ def test_append_visual_descriptions_includes_linked_grid_regions():
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -627,13 +630,17 @@ def test_append_visual_descriptions_includes_linked_grid_regions():
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_small_sheet_page_like(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -667,6 +674,7 @@ def test_process_xlsx_small_sheet_page_like(
     assert page.page_title == "Summary"
     assert page.method == "xlsx_sheet_classification"
     assert page.metadata["classification"] == "page_like"
+    assert page.metadata["page_type"] == "page_like_sheet"
     assert page.metadata["contains_dense_table"] is False
     assert page.metadata["threshold_exceeded"] is False
     assert page.metadata["estimated_tokens"] > 0
@@ -676,7 +684,7 @@ def test_process_xlsx_small_sheet_page_like(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -684,11 +692,17 @@ def test_process_xlsx_small_sheet_page_like(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
-@patch("ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=80)
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=80,
+)
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_dense_sheet_marks_threshold_and_dense_table(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -718,6 +732,7 @@ def test_process_xlsx_dense_sheet_marks_threshold_and_dense_table(
     page = result.pages[0]
     assert page.metadata["contains_dense_table"] is True
     assert page.metadata["classification"] == "dense_table_candidate"
+    assert page.metadata["page_type"] == "dense_table_sheet"
     assert page.metadata["threshold_exceeded"] is True
     assert page.metadata["estimated_tokens"] > page.metadata["token_limit"]
     assert page.metadata["region_count"] == 1
@@ -728,7 +743,7 @@ def test_process_xlsx_dense_sheet_marks_threshold_and_dense_table(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -736,13 +751,17 @@ def test_process_xlsx_dense_sheet_marks_threshold_and_dense_table(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_preserves_multiple_dense_regions(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -788,7 +807,7 @@ def test_process_xlsx_preserves_multiple_dense_regions(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -796,13 +815,17 @@ def test_process_xlsx_preserves_multiple_dense_regions(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_sparse_sheet_omits_blank_rows_and_columns(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -831,12 +854,15 @@ def test_process_xlsx_sparse_sheet_omits_blank_rows_and_columns(
     assert page.metadata["column_span"] == 26
     assert page.metadata["blank_rows_omitted"] == 98
     assert page.metadata["blank_columns_omitted"] == 24
-    assert "| Row | A | Z |" in page.content
+    assert "<!-- region:region_1 start -->" in page.content
+    assert "<!-- region:region_2 start -->" in page.content
+    assert "| Row | A |" in page.content
+    assert "| Row | Z |" in page.content
     assert "| 2 |" not in page.content
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -844,14 +870,15 @@ def test_process_xlsx_sparse_sheet_omits_blank_rows_and_columns(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
 @patch(
-    "ingestion.processors.xlsx.load_prompt",
+    "ingestion.processors.xlsx.processor.load_prompt",
     side_effect=_make_prompt_loader,
 )
 def test_process_xlsx_visual_only_tabs_are_not_empty(
@@ -901,7 +928,7 @@ def test_process_xlsx_visual_only_tabs_are_not_empty(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -909,17 +936,18 @@ def test_process_xlsx_visual_only_tabs_are_not_empty(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
 @patch(
-    "ingestion.processors.xlsx.load_prompt",
+    "ingestion.processors.xlsx.processor.load_prompt",
     side_effect=_make_prompt_loader,
 )
-@patch("ingestion.processors.xlsx.call_vision")
+@patch("ingestion.processors.xlsx.processor.call_vision")
 def test_process_xlsx_visual_only_image_tab_uses_vision_description(
     mock_call_vision,
     _prompt,
@@ -958,7 +986,7 @@ def test_process_xlsx_visual_only_image_tab_uses_vision_description(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -966,14 +994,15 @@ def test_process_xlsx_visual_only_image_tab_uses_vision_description(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
 @patch(
-    "ingestion.processors.xlsx.load_prompt",
+    "ingestion.processors.xlsx.processor.load_prompt",
     side_effect=_make_prompt_loader,
 )
 def test_process_xlsx_grid_with_chart_includes_visual_metadata(
@@ -1080,6 +1109,7 @@ def test_serialize_sheet_prefers_cached_values_over_formulas():
 
     assert "40" in content
     assert "=B1-B2" not in content
+    assert "<!-- region:region_1 start -->" in content
     assert metadata["formula_cells"] == 1
     workbook.close()
 
@@ -1097,12 +1127,13 @@ def test_serialize_sheet_falls_back_to_formula_without_cache():
     content, metadata = _serialize_sheet(sheet, {})
 
     assert "=SUM(B1)" in content
+    assert "<!-- region:region_1 start -->" in content
     assert metadata["formula_cells"] == 1
     workbook.close()
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -1110,13 +1141,17 @@ def test_serialize_sheet_falls_back_to_formula_without_cache():
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_empty_sheet_skips_llm(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -1137,17 +1172,17 @@ def test_process_xlsx_empty_sheet_skips_llm(
     llm.call.assert_not_called()
 
 
-@patch("ingestion.processors.xlsx.time.sleep")
+@patch("ingestion.processors.xlsx.processor.time.sleep")
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_classification_retry_delay",
+    "ingestion.processors.xlsx.processor.get_xlsx_classification_retry_delay",
     return_value=2.0,
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_classification_max_retries",
+    "ingestion.processors.xlsx.processor.get_xlsx_classification_max_retries",
     return_value=3,
 )
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -1155,13 +1190,17 @@ def test_process_xlsx_empty_sheet_skips_llm(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_retries_classification(
     _prompt,
     _token_limit,
@@ -1193,17 +1232,17 @@ def test_process_xlsx_retries_classification(
     mock_sleep.assert_called_once_with(2.0)
 
 
-@patch("ingestion.processors.xlsx.time.sleep")
+@patch("ingestion.processors.xlsx.processor.time.sleep")
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_classification_retry_delay",
+    "ingestion.processors.xlsx.processor.get_xlsx_classification_retry_delay",
     return_value=1.5,
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_classification_max_retries",
+    "ingestion.processors.xlsx.processor.get_xlsx_classification_max_retries",
     return_value=2,
 )
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -1211,13 +1250,17 @@ def test_process_xlsx_retries_classification(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_classification_failure_aborts_workbook(
     _prompt,
     _token_limit,
@@ -1254,11 +1297,11 @@ def test_process_xlsx_classification_failure_aborts_workbook(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_classification_retry_delay",
+    "ingestion.processors.xlsx.processor.get_xlsx_classification_retry_delay",
     return_value=2.0,
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_classification_max_retries",
+    "ingestion.processors.xlsx.processor.get_xlsx_classification_max_retries",
     return_value=0,
 )
 def test_classify_sheet_with_retry_zero_retries_raises_runtime_error(
@@ -1293,7 +1336,7 @@ def test_classify_sheet_with_retry_zero_retries_raises_runtime_error(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -1301,11 +1344,16 @@ def test_classify_sheet_with_retry_zero_retries_raises_runtime_error(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
 @patch(
-    "ingestion.processors.xlsx.load_workbook", side_effect=OSError("bad zip")
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
+@patch(
+    "ingestion.processors.xlsx.processor.load_workbook",
+    side_effect=OSError("bad zip"),
 )
 def test_process_xlsx_open_failure(
     _load_workbook, _prompt, _token_limit, _model_config
@@ -1318,7 +1366,7 @@ def test_process_xlsx_open_failure(
 
 
 @patch(
-    "ingestion.processors.xlsx.load_workbook",
+    "ingestion.processors.xlsx.processor.load_workbook",
 )
 def test_open_workbooks_cached_values_failure_closes_formula_workbook(
     mock_load_workbook,

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.stages.content_preparation import (
+from ingestion.processors.xlsx.content_preparation import (
     _build_column_roles_section,
     _build_description_message,
     _build_dense_table_routing_metadata,
@@ -13,25 +13,25 @@ from ingestion.stages.content_preparation import (
     _build_replacement_content,
     _describe_dense_table,
     _escape_table_cell,
-    _extract_filename,
     _format_column_profile,
     _format_filter_line,
     _get_dense_table_regions,
     _is_dense_table_candidate,
-    _load_extraction_results,
     _parse_description_response,
+)
+from ingestion.stages.content_preparation import (
+    _extract_filename,
+    _load_extraction_results,
     _prepare_file,
     _prepare_page,
     _write_result,
     run_content_preparation,
 )
-from ingestion.utils.content_types import (
+from ingestion.utils.file_types import ContentPreparationResult, PreparedPage
+from ingestion.processors.xlsx.types import (
     ColumnProfile,
-    ContentChunk,
-    ContentPreparationResult,
     DenseTableDescription,
     PreparedDenseTable,
-    PreparedPage,
     TableEDA,
 )
 
@@ -73,10 +73,18 @@ def _make_dense_page(**overrides):
         content=(
             "# Sheet: Transactions\n"
             "- Sheet type: worksheet\n\n"
+            "<!-- region:region_1 start -->\n"
             "| Row | A | B |\n"
             "| --- | --- | --- |\n"
-            "| 1 | Date | Amount |\n"
-            "| 2 | 2024-01-15 | 5000 |"
+            "| 1 | Portfolio | Summary |\n"
+            "<!-- region:region_1 end -->\n\n"
+            "<!-- region:region_2 start -->\n"
+            "| Row | A | B |\n"
+            "| --- | --- | --- |\n"
+            "| 3 | 2024-01-01 | 5000 |\n"
+            "| 4 | 2024-02-01 | 3000 |\n"
+            "| 5 | 2024-03-01 | 7500 |\n"
+            "<!-- region:region_2 end -->"
         ),
         method="xlsx_sheet_classification",
         metadata={
@@ -966,7 +974,7 @@ def test_build_replacement_content_escapes_newlines():
 # ── _describe_dense_table ────────────────────────────────────
 
 
-@patch("ingestion.utils.dense_table_description.load_prompt")
+@patch("ingestion.processors.xlsx.dense_table.load_prompt")
 def test_describe_dense_table(mock_load_prompt):
     """Runs EDA and LLM description end-to-end."""
     mock_load_prompt.return_value = {
@@ -993,7 +1001,7 @@ def test_describe_dense_table(mock_load_prompt):
     mock_llm.call.assert_called_once()
 
 
-@patch("ingestion.utils.dense_table_description.load_prompt")
+@patch("ingestion.processors.xlsx.dense_table.load_prompt")
 def test_describe_dense_table_uses_region_metadata(mock_load_prompt):
     """Dense table description prefers region metadata over sheet markdown."""
     mock_load_prompt.return_value = {
@@ -1034,7 +1042,7 @@ def test_describe_dense_table_uses_region_metadata(mock_load_prompt):
     assert "Dense table used range: A3:B5" in prompt_text
 
 
-@patch("ingestion.utils.dense_table_description.load_prompt")
+@patch("ingestion.processors.xlsx.dense_table.load_prompt")
 def test_describe_dense_table_falls_back_without_dense_region(
     mock_load_prompt,
 ):
@@ -1067,241 +1075,6 @@ def test_describe_dense_table_falls_back_without_dense_region(
     assert eda.used_range == "A1:B2"
     assert eda.header_mode == "header_row"
     assert mode == "llm_one_shot"
-
-
-# ── _prepare_page dense_table_replaced_chunked ───────────────
-
-
-@patch("ingestion.stages.content_preparation.chunk_content")
-@patch("ingestion.stages.content_preparation._describe_dense_table")
-def test_prepare_page_dense_table_chunked(mock_describe, mock_chunk):
-    """Dense table replacement that exceeds chunk limit."""
-    eda = TableEDA(
-        row_count=5,
-        columns=[ColumnProfile("Date", "A", "date", {}, [], 5, 0, 5)],
-        header_row=1,
-        framing_context="",
-        sample_rows=[],
-        token_count=500,
-    )
-    desc = DenseTableDescription(
-        description="A dataset.",
-        column_descriptions=[{"name": "Date", "description": "The date"}],
-        filter_columns=["Date"],
-        identifier_columns=[],
-        measure_columns=[],
-        text_content_columns=[],
-        sample_queries=["When?"],
-    )
-    mock_describe.return_value = (eda, desc, "llm_batched")
-    mock_chunk.return_value = [
-        ContentChunk(0, "# Dense Part 1", 5000, True),
-        ContentChunk(1, "# Dense Part 2", 5000, True),
-    ]
-
-    page = _make_dense_page()
-    mock_llm = MagicMock()
-    result = _prepare_page(page, mock_llm, 8191)
-    assert result.method == "dense_table_replaced_chunked"
-    assert result.description_generation_mode == "llm_batched"
-    assert len(result.chunks) == 2
-    assert all(c.is_dense_table_description for c in result.chunks)
-    assert len(result.dense_tables) == 1
-    assert all(
-        chunk.routing_metadata["sheet_name"] == "Transactions"
-        for chunk in result.chunks
-    )
-
-
-@patch("ingestion.stages.content_preparation._prepare_dense_table_region")
-def test_prepare_page_multiple_dense_tables(mock_prepare_region):
-    """Multiple dense regions become independently routable prepared tables."""
-    dense_page = _make_dense_page(
-        metadata={
-            **_make_dense_region_metadata(),
-            "dense_table_regions": [
-                _make_dense_region_metadata()["dense_table_region"],
-                _make_second_dense_region(),
-            ],
-        }
-    )
-    first_eda = TableEDA(
-        row_count=3,
-        columns=[ColumnProfile("Date", "A", "date", {}, [], 3, 0, 3)],
-        header_row=1,
-        framing_context="",
-        sample_rows=[],
-        token_count=100,
-        used_range="A3:B5",
-        source_region_id="region_2",
-    )
-    second_eda = TableEDA(
-        row_count=3,
-        columns=[ColumnProfile("Region", "D", "text", {}, [], 3, 0, 3)],
-        header_row=1,
-        framing_context="",
-        sample_rows=[],
-        token_count=100,
-        used_range="D3:E5",
-        source_region_id="region_3",
-    )
-    desc = DenseTableDescription(
-        description="Dataset.",
-        column_descriptions=[],
-        filter_columns=[],
-        identifier_columns=[],
-        measure_columns=[],
-        text_content_columns=[],
-        sample_queries=["Question?"],
-    )
-    mock_prepare_region.side_effect = [
-        PreparedDenseTable(
-            region_id="region_2",
-            used_range="A3:B5",
-            routing_metadata=_make_routing_metadata(
-                selected_region_id="region_2",
-                source_region_id="region_2",
-                used_range="A3:B5",
-            ),
-            chunks=[
-                ContentChunk(
-                    0,
-                    "# Dense A",
-                    50,
-                    True,
-                    {"selected_region_id": "region_2"},
-                )
-            ],
-            replacement_content="# Dense A",
-            dense_table_eda=first_eda,
-            dense_table_description=desc,
-            description_generation_mode="llm_one_shot",
-        ),
-        PreparedDenseTable(
-            region_id="region_3",
-            used_range="D3:E5",
-            routing_metadata=_make_routing_metadata(
-                selected_region_id="region_3",
-                source_region_id="region_3",
-                used_range="D3:E5",
-            ),
-            chunks=[
-                ContentChunk(
-                    0,
-                    "# Dense B",
-                    50,
-                    True,
-                    {"selected_region_id": "region_3"},
-                )
-            ],
-            replacement_content="# Dense B",
-            dense_table_eda=second_eda,
-            dense_table_description=desc,
-            description_generation_mode="llm_batched",
-        ),
-    ]
-
-    result = _prepare_page(dense_page, MagicMock(), 8191)
-
-    assert result.method == "dense_tables_replaced"
-    assert len(result.dense_tables) == 2
-    assert result.dense_table_eda == first_eda
-    assert result.description_generation_mode == "llm_one_shot"
-    assert [chunk.chunk_index for chunk in result.chunks] == [0, 1]
-    assert [
-        chunk.routing_metadata["selected_region_id"] for chunk in result.chunks
-    ] == ["region_2", "region_3"]
-
-
-@patch("ingestion.stages.content_preparation._prepare_dense_table_region")
-def test_prepare_page_multiple_dense_tables_chunked(mock_prepare_region):
-    """Chunked multi-region dense tables use the chunked replacement method."""
-    dense_page = _make_dense_page(
-        metadata={
-            **_make_dense_region_metadata(),
-            "dense_table_regions": [
-                _make_dense_region_metadata()["dense_table_region"],
-                _make_second_dense_region(),
-            ],
-        }
-    )
-    desc = DenseTableDescription(
-        description="Dataset.",
-        column_descriptions=[],
-        filter_columns=[],
-        identifier_columns=[],
-        measure_columns=[],
-        text_content_columns=[],
-        sample_queries=["Question?"],
-    )
-    eda = TableEDA(
-        row_count=3,
-        columns=[ColumnProfile("Date", "A", "date", {}, [], 3, 0, 3)],
-        header_row=1,
-        framing_context="",
-        sample_rows=[],
-        token_count=100,
-        used_range="A3:B5",
-        source_region_id="region_2",
-    )
-    mock_prepare_region.side_effect = [
-        PreparedDenseTable(
-            region_id="region_2",
-            used_range="A3:B5",
-            routing_metadata=_make_routing_metadata(
-                selected_region_id="region_2",
-                source_region_id="region_2",
-                used_range="A3:B5",
-            ),
-            chunks=[
-                ContentChunk(
-                    0,
-                    "# Dense A1",
-                    50,
-                    True,
-                    {"selected_region_id": "region_2"},
-                ),
-                ContentChunk(
-                    1,
-                    "# Dense A2",
-                    50,
-                    True,
-                    {"selected_region_id": "region_2"},
-                ),
-            ],
-            replacement_content="# Dense A",
-            dense_table_eda=eda,
-            dense_table_description=desc,
-            description_generation_mode="llm_one_shot",
-        ),
-        PreparedDenseTable(
-            region_id="region_3",
-            used_range="D3:E5",
-            routing_metadata=_make_routing_metadata(
-                selected_region_id="region_3",
-                source_region_id="region_3",
-                used_range="D3:E5",
-            ),
-            chunks=[
-                ContentChunk(
-                    0,
-                    "# Dense B",
-                    50,
-                    True,
-                    {"selected_region_id": "region_3"},
-                )
-            ],
-            replacement_content="# Dense B",
-            dense_table_eda=eda,
-            dense_table_description=desc,
-            description_generation_mode="llm_batched",
-        ),
-    ]
-
-    result = _prepare_page(dense_page, MagicMock(), 8191)
-
-    assert result.method == "dense_tables_replaced_chunked"
-    assert [chunk.chunk_index for chunk in result.chunks] == [0, 1, 2]
 
 
 # ── _load_extraction_results ─────────────────────────────────
@@ -1351,44 +1124,49 @@ def test_load_extraction_results_malformed(tmp_path, monkeypatch):
 # ── _prepare_page ────────────────────────────────────────────
 
 
-@patch("ingestion.stages.content_preparation.chunk_content")
-def test_prepare_page_passthrough(mock_chunk):
-    """Normal page passes through with single chunk."""
-    mock_chunk.return_value = [ContentChunk(0, "Some content here.", 10)]
-    page = _make_page()
-    mock_llm = MagicMock()
-    result = _prepare_page(page, mock_llm, 8191)
+def test_prepare_page_passthrough():
+    """Non-XLSX pages pass through unchanged."""
+    result = _prepare_page(_make_page(), "pdf", MagicMock())
     assert result.method == "passthrough"
-    assert len(result.chunks) == 1
+    assert result.content == "Some content here."
     assert result.original_content == ""
     assert result.dense_table_eda is None
 
 
-@patch("ingestion.stages.content_preparation.chunk_content")
-def test_prepare_page_chunked(mock_chunk):
-    """Oversized page gets chunked."""
-    mock_chunk.return_value = [
-        ContentChunk(0, "Part 1", 5000),
-        ContentChunk(1, "Part 2", 5000),
-    ]
-    page = _make_page()
-    mock_llm = MagicMock()
-    result = _prepare_page(page, mock_llm, 8191)
-    assert result.method == "chunked"
-    assert len(result.chunks) == 2
+def test_prepare_page_page_like_xlsx_strips_region_markers():
+    """Page-like XLSX content drops internal region markers."""
+    page = _make_page(
+        method="xlsx_sheet_classification",
+        content=(
+            "# Sheet: Test\n\n"
+            "<!-- region:region_1 start -->\n"
+            "| Row | A |\n"
+            "| --- | --- |\n"
+            "| 1 | Value |\n"
+            "<!-- region:region_1 end -->"
+        ),
+        metadata={"handling_mode": "page_like"},
+    )
+
+    result = _prepare_page(page, "xlsx", MagicMock())
+
+    assert result.method == "passthrough"
+    assert "<!-- region:" not in result.content
+    assert "| 1 | Value |" in result.content
 
 
-@patch("ingestion.stages.content_preparation.chunk_content")
-@patch("ingestion.stages.content_preparation._describe_dense_table")
-def test_prepare_page_dense_table(mock_describe, mock_chunk):
-    """Dense table page gets EDA + description + replacement."""
+@patch("ingestion.processors.xlsx.content_preparation._describe_dense_table")
+def test_prepare_page_dense_table_replaces_region_content(mock_describe):
+    """Dense table pages splice replacements into the original sheet."""
     eda = TableEDA(
-        row_count=5,
-        columns=[ColumnProfile("Date", "A", "date", {}, [], 5, 0, 5)],
+        row_count=3,
+        columns=[ColumnProfile("Date", "A", "date", {}, [], 3, 0, 3)],
         header_row=1,
         framing_context="",
         sample_rows=[],
         token_count=500,
+        used_range="A3:B5",
+        source_region_id="region_2",
     )
     desc = DenseTableDescription(
         description="A dataset.",
@@ -1400,19 +1178,188 @@ def test_prepare_page_dense_table(mock_describe, mock_chunk):
         sample_queries=["When?"],
     )
     mock_describe.return_value = (eda, desc, "llm_one_shot")
-    mock_chunk.return_value = [ContentChunk(0, "# Dense Table", 200, True)]
 
-    page = _make_dense_page()
-    mock_llm = MagicMock()
-    result = _prepare_page(page, mock_llm, 8191)
+    page = _make_dense_page(metadata=_make_dense_region_metadata())
+    result = _prepare_page(page, "xlsx", MagicMock())
+
     assert result.method == "dense_table_replaced"
-    assert result.original_content != ""
+    assert result.original_content == page["content"]
     assert result.dense_table_eda is not None
     assert result.dense_table_description is not None
     assert result.description_generation_mode == "llm_one_shot"
-    assert result.chunks[0].is_dense_table_description
     assert len(result.dense_tables) == 1
-    assert result.chunks[0].routing_metadata["sheet_name"] == "Transactions"
+    assert result.dense_tables[0].routing_metadata["sheet_name"] == (
+        "Transactions"
+    )
+    assert "# Dense Table: Transactions" in result.content
+    assert "| 1 | Portfolio | Summary |" in result.content
+    assert "<!-- region:" not in result.content
+    assert result.dense_tables[0].raw_content == (
+        _make_dense_region_metadata()["dense_table_region"]["rows"]
+    )
+
+
+@patch(
+    "ingestion.processors.xlsx.content_preparation."
+    "_prepare_dense_table_region"
+)
+def test_prepare_page_multiple_dense_tables(mock_prepare_region):
+    """Multiple dense regions are spliced independently into one page."""
+    dense_page = _make_dense_page(
+        content=(
+            "# Sheet: Transactions\n"
+            "- Sheet type: worksheet\n\n"
+            "<!-- region:region_1 start -->\n"
+            "| Row | A | B |\n"
+            "| --- | --- | --- |\n"
+            "| 1 | Portfolio | Summary |\n"
+            "<!-- region:region_1 end -->\n\n"
+            "<!-- region:region_2 start -->\n"
+            "| Row | A | B |\n"
+            "| --- | --- | --- |\n"
+            "| 3 | 2024-01-01 | 5000 |\n"
+            "| 4 | 2024-02-01 | 3000 |\n"
+            "| 5 | 2024-03-01 | 7500 |\n"
+            "<!-- region:region_2 end -->\n\n"
+            "<!-- region:region_3 start -->\n"
+            "| Row | D | E |\n"
+            "| --- | --- | --- |\n"
+            "| 3 | East | 3000 |\n"
+            "| 4 | West | 2500 |\n"
+            "| 5 | North | 4100 |\n"
+            "<!-- region:region_3 end -->"
+        ),
+        metadata={
+            **_make_dense_region_metadata(),
+            "dense_table_regions": [
+                _make_dense_region_metadata()["dense_table_region"],
+                _make_second_dense_region(),
+            ],
+        },
+    )
+    first_eda = TableEDA(
+        row_count=3,
+        columns=[ColumnProfile("Date", "A", "date", {}, [], 3, 0, 3)],
+        header_row=1,
+        framing_context="",
+        sample_rows=[],
+        token_count=100,
+        used_range="A3:B5",
+        source_region_id="region_2",
+    )
+    second_eda = TableEDA(
+        row_count=3,
+        columns=[ColumnProfile("Region", "D", "text", {}, [], 3, 0, 3)],
+        header_row=1,
+        framing_context="",
+        sample_rows=[],
+        token_count=100,
+        used_range="D3:E5",
+        source_region_id="region_3",
+    )
+    desc = DenseTableDescription(
+        description="Dataset.",
+        column_descriptions=[],
+        filter_columns=[],
+        identifier_columns=[],
+        measure_columns=[],
+        text_content_columns=[],
+        sample_queries=["Question?"],
+    )
+    mock_prepare_region.side_effect = [
+        PreparedDenseTable(
+            region_id="region_2",
+            used_range="A3:B5",
+            routing_metadata=_make_routing_metadata(
+                selected_region_id="region_2",
+                source_region_id="region_2",
+                used_range="A3:B5",
+            ),
+            raw_content=_make_dense_region_metadata()["dense_table_region"][
+                "rows"
+            ],
+            replacement_content="# Dense A",
+            dense_table_eda=first_eda,
+            dense_table_description=desc,
+            description_generation_mode="llm_one_shot",
+        ),
+        PreparedDenseTable(
+            region_id="region_3",
+            used_range="D3:E5",
+            routing_metadata=_make_routing_metadata(
+                selected_region_id="region_3",
+                source_region_id="region_3",
+                used_range="D3:E5",
+            ),
+            raw_content=_make_second_dense_region()["rows"],
+            replacement_content="# Dense B",
+            dense_table_eda=second_eda,
+            dense_table_description=desc,
+            description_generation_mode="llm_batched",
+        ),
+    ]
+
+    result = _prepare_page(dense_page, "xlsx", MagicMock())
+
+    assert result.method == "dense_table_replaced"
+    assert len(result.dense_tables) == 2
+    assert result.dense_table_eda == first_eda
+    assert result.description_generation_mode == "llm_one_shot"
+    assert "# Dense A" in result.content
+    assert "# Dense B" in result.content
+    assert "<!-- region:" not in result.content
+    assert "Portfolio | Summary" in result.content
+    assert result.dense_tables[0].raw_content == (
+        _make_dense_region_metadata()["dense_table_region"]["rows"]
+    )
+    assert result.dense_tables[1].raw_content == (
+        _make_second_dense_region()["rows"]
+    )
+
+
+@patch("ingestion.processors.xlsx.content_preparation._describe_dense_table")
+def test_prepare_page_dense_table_missing_markers_falls_back(
+    mock_describe,
+):
+    """Missing region markers fall back to standalone replacements."""
+    eda = TableEDA(
+        row_count=3,
+        columns=[ColumnProfile("Date", "A", "date", {}, [], 3, 0, 3)],
+        header_row=1,
+        framing_context="",
+        sample_rows=[],
+        token_count=500,
+        used_range="A3:B5",
+        source_region_id="region_2",
+    )
+    desc = DenseTableDescription(
+        description="A dataset.",
+        column_descriptions=[{"name": "Date", "description": "The date"}],
+        filter_columns=["Date"],
+        identifier_columns=[],
+        measure_columns=[],
+        text_content_columns=[],
+        sample_queries=["When?"],
+    )
+    mock_describe.return_value = (eda, desc, "llm_one_shot")
+
+    page = _make_dense_page(
+        content=(
+            "# Sheet: Transactions\n"
+            "- Sheet type: worksheet\n\n"
+            "| Row | A | B |\n"
+            "| --- | --- | --- |\n"
+            "| 3 | 2024-01-01 | 5000 |"
+        ),
+        metadata=_make_dense_region_metadata(),
+    )
+    result = _prepare_page(page, "xlsx", MagicMock())
+
+    assert result.method == "dense_table_replaced"
+    assert result.content.startswith("# Dense Table: Transactions")
+    assert result.dense_tables[0].raw_content == (
+        _make_dense_region_metadata()["dense_table_region"]["rows"]
+    )
 
 
 # ── _prepare_file ────────────────────────────────────────────
@@ -1420,86 +1367,31 @@ def test_prepare_page_dense_table(mock_describe, mock_chunk):
 
 @patch("ingestion.stages.content_preparation._prepare_page")
 def test_prepare_file_basic(mock_prepare):
-    """Processes all pages and counts correctly."""
+    """Processes all pages and counts dense-table splices."""
     mock_prepare.return_value = PreparedPage(
         page_number=1,
         page_title="Test",
-        chunks=[ContentChunk(0, "content", 100)],
+        content="content",
         method="passthrough",
     )
-    ext = _make_extraction()
-    mock_llm = MagicMock()
-    result = _prepare_file(ext, mock_llm, 8191)
+    result = _prepare_file(_make_extraction(), MagicMock())
     assert result.file_path == "/data/src/test.pdf"
     assert len(result.pages) == 1
-    assert result.dense_tables_processed == 0
-    assert result.pages_chunked == 0
+    assert result.dense_tables_spliced == 0
 
 
 @patch("ingestion.stages.content_preparation._prepare_page")
-def test_prepare_file_counts_dense_and_chunked(
-    mock_prepare,
-):
-    """Counts dense tables and chunked pages correctly."""
-    eda = TableEDA(
-        row_count=1,
-        columns=[ColumnProfile("A", "A", "text", {}, [], 1, 0, 1)],
-        header_row=1,
-        framing_context="",
-        sample_rows=[],
-        token_count=100,
-    )
+def test_prepare_file_counts_dense_tables(mock_prepare):
+    """Dense table counts track sheet regions, not page count."""
+    first_dense_rows = _make_dense_region_metadata()["dense_table_region"][
+        "rows"
+    ]
+    second_dense_rows = _make_second_dense_region()["rows"]
     dense_page = PreparedPage(
         page_number=1,
         page_title="Dense",
-        chunks=[ContentChunk(0, "desc", 50, True)],
+        content="# Dense Table: Transactions",
         method="dense_table_replaced",
-        original_content="raw data",
-        dense_table_eda=eda,
-    )
-    chunked_page = PreparedPage(
-        page_number=2,
-        page_title="Chunked",
-        chunks=[
-            ContentChunk(0, "p1", 50),
-            ContentChunk(1, "p2", 50),
-        ],
-        method="chunked",
-    )
-    mock_prepare.side_effect = [dense_page, chunked_page]
-
-    ext = _make_extraction(
-        pages=[_make_page(page_number=1), _make_page(page_number=2)]
-    )
-    mock_llm = MagicMock()
-    result = _prepare_file(ext, mock_llm, 8191)
-    assert result.dense_tables_processed == 1
-    assert result.pages_chunked == 1
-
-
-@patch("ingestion.stages.content_preparation._prepare_page")
-def test_prepare_file_counts_multiple_dense_tables(mock_prepare):
-    """Dense table counts track regions, not just pages."""
-    dense_page = PreparedPage(
-        page_number=1,
-        page_title="Dense",
-        chunks=[
-            ContentChunk(
-                0,
-                "dense",
-                50,
-                True,
-                {"selected_region_id": "region_2"},
-            ),
-            ContentChunk(
-                1,
-                "dense",
-                50,
-                True,
-                {"selected_region_id": "region_3"},
-            ),
-        ],
-        method="dense_tables_replaced",
         dense_tables=[
             PreparedDenseTable(
                 region_id="region_2",
@@ -1507,7 +1399,7 @@ def test_prepare_file_counts_multiple_dense_tables(mock_prepare):
                 routing_metadata=_make_routing_metadata(
                     selected_region_id="region_2"
                 ),
-                chunks=[],
+                raw_content=first_dense_rows,
                 replacement_content="# Dense A",
             ),
             PreparedDenseTable(
@@ -1518,17 +1410,16 @@ def test_prepare_file_counts_multiple_dense_tables(mock_prepare):
                     used_range="D3:E5",
                     source_region_id="region_3",
                 ),
-                chunks=[],
+                raw_content=second_dense_rows,
                 replacement_content="# Dense B",
             ),
         ],
     )
     mock_prepare.return_value = dense_page
 
-    ext = _make_extraction()
-    result = _prepare_file(ext, MagicMock(), 8191)
+    result = _prepare_file(_make_extraction(), MagicMock())
 
-    assert result.dense_tables_processed == 2
+    assert result.dense_tables_spliced == 2
 
 
 # ── _write_result ────────────────────────────────────────────
@@ -1548,12 +1439,11 @@ def test_write_result(tmp_path, monkeypatch):
             PreparedPage(
                 page_number=1,
                 page_title="T",
-                chunks=[ContentChunk(0, "C", 10)],
+                content="C",
                 method="passthrough",
             )
         ],
-        dense_tables_processed=0,
-        pages_chunked=0,
+        dense_tables_spliced=0,
     )
     _write_result(result)
     files = list(prep_dir.glob("*.json"))
@@ -1576,8 +1466,7 @@ def test_write_result_path_hash(tmp_path, monkeypatch):
                 file_path=path,
                 filetype="pdf",
                 pages=[],
-                dense_tables_processed=0,
-                pages_chunked=0,
+                dense_tables_spliced=0,
             )
         )
     files = list(prep_dir.glob("*.json"))
@@ -1600,11 +1489,9 @@ def test_run_content_preparation_basic(mock_load, mock_prepare, mock_write):
         file_path="/data/a.pdf",
         filetype="pdf",
         pages=[],
-        dense_tables_processed=0,
-        pages_chunked=0,
+        dense_tables_spliced=0,
     )
-    mock_llm = MagicMock()
-    run_content_preparation(mock_llm)
+    run_content_preparation(MagicMock())
     assert mock_prepare.call_count == 2
     assert mock_write.call_count == 2
 
@@ -1613,8 +1500,7 @@ def test_run_content_preparation_basic(mock_load, mock_prepare, mock_write):
 def test_run_content_preparation_empty(mock_load):
     """No extraction results exits early."""
     mock_load.return_value = []
-    mock_llm = MagicMock()
-    run_content_preparation(mock_llm)
+    run_content_preparation(MagicMock())
 
 
 @patch("ingestion.stages.content_preparation._write_result")
@@ -1632,10 +1518,8 @@ def test_run_content_preparation_failure(mock_load, mock_prepare, mock_write):
             file_path="/data/b.pdf",
             filetype="pdf",
             pages=[],
-            dense_tables_processed=0,
-            pages_chunked=0,
+            dense_tables_spliced=0,
         ),
     ]
-    mock_llm = MagicMock()
-    run_content_preparation(mock_llm)
+    run_content_preparation(MagicMock())
     assert mock_write.call_count == 1

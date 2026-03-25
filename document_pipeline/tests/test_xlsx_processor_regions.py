@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from openpyxl import Workbook
 from openpyxl.worksheet.table import Table
 
-from ingestion.processors.xlsx import (
+from ingestion.processors.xlsx.processor import (
     _build_classifier_message,
     _build_region_metadata,
     _build_region_preview,
@@ -14,7 +14,7 @@ from ingestion.processors.xlsx import (
     _truncate_region_cell,
     process_xlsx,
 )
-from ingestion.utils.xlsx_layout import SheetRegion
+from ingestion.processors.xlsx.layout import SheetRegion
 
 
 def _make_fake_encoding() -> MagicMock:
@@ -206,7 +206,7 @@ def test_build_classifier_message_uses_sheet_preview_without_candidate():
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -214,13 +214,17 @@ def test_build_classifier_message_uses_sheet_preview_without_candidate():
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_mixed_layout_sheet_records_dense_table_region(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -280,7 +284,7 @@ def test_process_xlsx_mixed_layout_sheet_records_dense_table_region(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -288,13 +292,17 @@ def test_process_xlsx_mixed_layout_sheet_records_dense_table_region(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_classifier_prompt_uses_region_preview(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -341,7 +349,7 @@ def test_process_xlsx_classifier_prompt_uses_region_preview(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -349,13 +357,17 @@ def test_process_xlsx_classifier_prompt_uses_region_preview(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_sheet_without_dense_region_has_empty_dense_metadata(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):

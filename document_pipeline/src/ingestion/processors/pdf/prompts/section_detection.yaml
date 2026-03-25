@@ -1,0 +1,48 @@
+stage: finalization
+version: "1.0"
+description: >
+  Detect primary document sections from page-level enrichment
+  summaries and titles.
+
+system_prompt: >
+  You are a document structure analyst. Review the ordered page
+  summaries and identify the major section boundaries for the
+  document. Always use the provided tool.
+
+user_prompt: |
+  Identify the primary sections in this document.
+
+  ## Document Context
+  - File type: {filetype}
+  - Total pages: {total_pages}
+
+  ## Page Summaries
+  {page_summaries_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: detect_sections
+      description: Identify primary document sections in page order
+      parameters:
+        type: object
+        properties:
+          sections:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                page_start:
+                  type: integer
+                page_end:
+                  type: integer
+              required:
+                - title
+                - page_start
+                - page_end
+        required:
+          - sections

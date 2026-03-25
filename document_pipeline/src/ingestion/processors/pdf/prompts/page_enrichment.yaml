@@ -1,0 +1,117 @@
+stage: enrichment
+version: "1.0"
+description: >
+  Enrich a document page with summary, keywords, entities,
+  classifications, and section hierarchy.
+
+system_prompt: >
+  You are a document content analyst. Given the extracted content
+  of a single document page, generate structured metadata that
+  enables efficient retrieval, filtering, and summarization.
+  Always use the provided tool.
+
+user_prompt: |
+  Analyze this document page and generate enrichment metadata.
+
+  ## Page Context
+  - File type: {filetype}
+  - Page number: {page_number} of {total_pages}
+  - Page title: {page_title}
+  - Page type: {page_type}
+
+  ## Page Content
+  {content}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: enrich_page
+      description: Generate enrichment metadata for a document page
+      parameters:
+        type: object
+        properties:
+          summary:
+            type: string
+            description: >
+              2-4 sentence summary of the page content. Focus on
+              what information is presented, not how it is formatted.
+          usage_description:
+            type: string
+            description: >
+              1-2 sentence description of how this page would be
+              useful in research or analysis. What questions could
+              it help answer?
+          keywords:
+            type: array
+            items:
+              type: string
+            description: >
+              5-10 specific, descriptive keywords. Prefer domain
+              terms over generic words. Include named entities,
+              metrics, and topic labels.
+          classifications:
+            type: array
+            items:
+              type: string
+            description: >
+              Content type classifications from this list:
+              narrative, financial_data, table, chart_analysis,
+              methodology, executive_summary, appendix,
+              regulatory, market_analysis, risk_assessment,
+              comparison, forecast, historical_data.
+              Select 1-3 that apply.
+          entities:
+            type: array
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - organization
+                    - person
+                    - location
+                    - date
+                    - metric
+                    - product
+                    - regulation
+                  description: >
+                    Entity type: organization, person, location,
+                    date, metric, product, regulation
+                value:
+                  type: string
+                  description: The entity value as it appears in the content
+              required:
+                - type
+                - value
+            description: >
+              Named entities found in the document body content.
+              Extract organizations, people, locations, dates,
+              metrics, products, and regulations. Skip page
+              furniture, boilerplate, and confidentiality notices.
+          section_hierarchy:
+            type: array
+            items:
+              type: object
+              properties:
+                level:
+                  type: integer
+                  description: Heading level (1=top, 2=sub, 3=subsub)
+                title:
+                  type: string
+                  description: Section heading text
+              required:
+                - level
+                - title
+            description: >
+              Section structure of the page as a flat list of
+              headings with their levels.
+        required:
+          - summary
+          - usage_description
+          - keywords
+          - classifications
+          - entities
+          - section_hierarchy

@@ -16,9 +16,11 @@ logs/
 # Pipeline runtime
 processing/
 archive/
+storage/
 
-# Local test data
-test_data/
+# Local test data (except runtime_sources which contains the input documents)
+test_data/*
+!test_data/runtime_sources/
 
 # Environment (contains secrets)
 .env

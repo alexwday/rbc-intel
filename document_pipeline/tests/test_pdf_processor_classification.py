@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.processors.pdf import (
+from ingestion.processors.pdf.processor import (
     _CONTEXT_MAX_CHARS,
     _CONTEXT_MIN_CHARS,
     _classify_continuation_with_retry,
@@ -63,7 +63,12 @@ def _make_classification_prompt():
                 },
             }
         ],
-        "tool_choice": "required",
+        "tool_choice": {
+            "type": "function",
+            "function": {
+                "name": "classify_page_continuation",
+            },
+        },
     }
 
 
@@ -144,6 +149,34 @@ def test_classify_page_continuation_valid_response():
     assert result["contains_page_furniture"] is True
 
 
+def test_classify_page_continuation_section_continuation():
+    """Section continuation set when continued but not table."""
+    llm = MagicMock()
+    llm.call.return_value = _make_classification_response(
+        continued_from_previous_page=True,
+        table_continuation_detected=False,
+    )
+    prompt = _make_classification_prompt()
+
+    result = _classify_page_continuation(llm, prompt, "current", "previous")
+
+    assert result["section_continuation_detected"] is True
+
+
+def test_classify_page_continuation_no_section_when_table():
+    """Section continuation false when table continuation."""
+    llm = MagicMock()
+    llm.call.return_value = _make_classification_response(
+        continued_from_previous_page=True,
+        table_continuation_detected=True,
+    )
+    prompt = _make_classification_prompt()
+
+    result = _classify_page_continuation(llm, prompt, "current", "previous")
+
+    assert result["section_continuation_detected"] is False
+
+
 def test_classify_page_continuation_truncates_inputs():
     """Truncated content appears in the LLM call messages."""
     llm = MagicMock()
@@ -168,10 +201,27 @@ def test_classify_page_continuation_truncates_inputs():
     assert expected_curr in user_msg
 
 
+def test_classify_page_continuation_passes_specific_tool_choice():
+    """LLM call forces the continuation function explicitly."""
+    llm = MagicMock()
+    llm.call.return_value = _make_classification_response()
+    prompt = _make_classification_prompt()
+
+    _classify_page_continuation(llm, prompt, "current", "previous")
+
+    call_args = llm.call.call_args
+    assert call_args[1]["tool_choice"] == {
+        "type": "function",
+        "function": {
+            "name": "classify_page_continuation",
+        },
+    }
+
+
 # ── _classify_continuation_with_retry ─────────────────────────
 
 
-@patch("ingestion.processors.pdf.time.sleep")
+@patch("ingestion.processors.pdf.processor.time.sleep")
 def test_classify_continuation_with_retry_first_attempt(
     mock_sleep,
 ):
@@ -190,7 +240,7 @@ def test_classify_continuation_with_retry_first_attempt(
     mock_sleep.assert_not_called()
 
 
-@patch("ingestion.processors.pdf.time.sleep")
+@patch("ingestion.processors.pdf.processor.time.sleep")
 def test_classify_continuation_with_retry_transient_then_ok(
     mock_sleep,
 ):
@@ -210,7 +260,7 @@ def test_classify_continuation_with_retry_transient_then_ok(
     mock_sleep.assert_called_once()
 
 
-@patch("ingestion.processors.pdf.time.sleep")
+@patch("ingestion.processors.pdf.processor.time.sleep")
 def test_classify_continuation_with_retry_exhausted(
     mock_sleep,
 ):

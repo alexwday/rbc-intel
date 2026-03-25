@@ -406,3 +406,34 @@ def test_run_startup_returns_conn_and_llm(tmp_path, monkeypatch):
     assert conn is mock_conn
     assert llm is mock_llm
     logging.getLogger().handlers.clear()
+
+
+def test_run_startup_skips_llm_when_not_required(tmp_path, monkeypatch):
+    """Storage-only startup returns a DB connection without an LLM client."""
+    monkeypatch.setattr("ingestion.utils.logging_setup.LOGS_DIR", tmp_path)
+    monkeypatch.setattr(
+        "ingestion.stages.startup.PROCESSING_DIR", tmp_path / "processing"
+    )
+    monkeypatch.setattr(
+        "ingestion.stages.startup.LOCK_FILE",
+        tmp_path / "processing" / "pipeline.lock",
+    )
+    monkeypatch.setattr(
+        "ingestion.stages.startup.ARCHIVE_DIR", tmp_path / "archive"
+    )
+    with (
+        patch("ingestion.stages.startup.load_config"),
+        patch("ingestion.stages.startup.setup_ssl"),
+        patch("ingestion.stages.startup.LLMClient") as mock_llm_cls,
+        patch("ingestion.stages.startup.get_connection") as mock_get_conn,
+        patch("ingestion.stages.startup.verify_connection"),
+    ):
+        mock_conn = MagicMock()
+        mock_get_conn.return_value = mock_conn
+
+        conn, llm = run_startup(require_llm=False)
+
+    assert conn is mock_conn
+    assert llm is None
+    mock_llm_cls.assert_not_called()
+    logging.getLogger().handlers.clear()

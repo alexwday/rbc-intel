@@ -1,6 +1,6 @@
 """Focused tests for single-row and empty region header detection."""
 
-from ingestion.utils.table_eda import (
+from ingestion.processors.xlsx.table_eda import (
     detect_header_mode,
     run_table_eda_from_region,
 )

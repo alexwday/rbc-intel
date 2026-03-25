@@ -1,0 +1,55 @@
+stage: page_classification
+version: "1.1"
+description: >
+  Classify page-to-page content continuation and repeated page
+  furniture from extracted markdown of consecutive document pages.
+
+system_prompt: >
+  You classify document page transitions. You must always respond
+  using the provided tool. Do not respond with text.
+
+user_prompt: >
+  Compare the previous page content with the current page content
+  and classify their relationship using the tool.
+
+tool_choice:
+  type: function
+  function:
+    name: classify_page_continuation
+
+tools:
+  - type: function
+    function:
+      name: classify_page_continuation
+      description: >
+        Classify content continuation and repeated furniture
+        between consecutive document pages.
+      parameters:
+        type: object
+        properties:
+          continued_from_previous_page:
+            type: boolean
+            description: >
+              True if content carries over from the previous
+              page (table rows continuing, paragraph split
+              across pages, list or footnotes carrying over).
+          table_continuation_detected:
+            type: boolean
+            description: >
+              True if a markdown table from the previous page
+              continues on this page.
+          repeated_header_detected:
+            type: boolean
+            description: >
+              True if the page has a running header that also
+              appeared on the previous page.
+          repeated_footer_detected:
+            type: boolean
+            description: >
+              True if the page has a running footer that also
+              appeared on the previous page.
+        required:
+          - continued_from_previous_page
+          - table_continuation_detected
+          - repeated_header_detected
+          - repeated_footer_detected

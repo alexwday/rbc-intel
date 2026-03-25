@@ -6,9 +6,10 @@ import shutil
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from ..connections.llm import LLMClient
-from ..connections.postgres import get_connection, verify_connection
+from ..utils.llm import LLMClient
+from ..utils.postgres import get_connection, verify_connection
 from ..utils.config import get_retention_count, load_config
 from ..utils.logging_setup import (
     LOGS_DIR,
@@ -260,18 +261,22 @@ def _prune_old_files(directory: Path, pattern: str, label: str) -> None:
     logger.info("Pruned %d old %s", len(to_remove), label)
 
 
-def run_startup() -> tuple:
+def run_startup(require_llm: bool = True) -> tuple[Any, LLMClient | None]:
     """Initialize the pipeline and return connections.
 
     Handles config loading, logging setup, SSL, lock
     acquisition, crash recovery cleanup, and verification
-    of LLM and database connectivity.
+    of database connectivity. LLM connectivity is verified
+    only when required for downstream stages.
+
+    Params:
+        require_llm: Whether to initialize and verify the LLM client
 
     Returns:
-        tuple of (psycopg2 connection, LLMClient)
+        tuple of (psycopg2 connection, LLMClient | None)
 
     Example:
-        >>> conn, llm = run_startup()
+        >>> conn, llm = run_startup(require_llm=False)
     """
     load_config()
     setup_logging()
@@ -281,13 +286,17 @@ def run_startup() -> tuple:
     setup_ssl()
 
     conn = None
+    llm = None
     _acquire_lock()
     try:
         _clean_stale_processing()
 
-        logger.info("Initializing LLM client")
-        llm = LLMClient()
-        llm.test_connection()
+        if require_llm:
+            logger.info("Initializing LLM client")
+            llm = LLMClient()
+            llm.test_connection()
+        else:
+            logger.info("Skipping LLM initialization")
 
         logger.info("Connecting to database")
         conn = get_connection()

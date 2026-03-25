@@ -52,6 +52,7 @@ output/
 *.pptx
 *.xlsx
 !docs/**
+!document_pipeline/test_data/runtime_sources/**
 
 # Logs
 logs/

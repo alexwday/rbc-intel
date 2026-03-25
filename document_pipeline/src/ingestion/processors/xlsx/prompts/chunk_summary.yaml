@@ -1,0 +1,43 @@
+stage: finalization
+version: "1.0"
+description: >
+  Generate concise chunk summary prefixes for XLSX embedding text.
+
+system_prompt: >
+  You are a retrieval analyst. For each chunk, produce one short sentence that
+  captures the chunk's unique information using the supplied section context.
+  Always use the provided tool.
+
+user_prompt: |
+  Generate concise summaries for these chunks.
+
+  ## Document Context
+  - File type: {filetype}
+
+  ## Chunks
+  {chunk_payload_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: summarize_chunks
+      description: Generate chunk-level summary prefixes
+      parameters:
+        type: object
+        properties:
+          summaries:
+            type: array
+            items:
+              type: object
+              properties:
+                chunk_number:
+                  type: integer
+                summary:
+                  type: string
+              required:
+                - chunk_number
+                - summary
+        required:
+          - summaries

@@ -2,10 +2,9 @@
 
 from unittest.mock import MagicMock, patch
 
-from ingestion.stages.content_preparation import _prepare_page
-from ingestion.utils.content_types import (
+from ingestion.processors.xlsx.content_preparation import prepare_xlsx_page
+from ingestion.processors.xlsx.types import (
     ColumnProfile,
-    ContentChunk,
     DenseTableDescription,
     TableEDA,
 )
@@ -52,11 +51,9 @@ def _make_dense_eda() -> TableEDA:
     )
 
 
-@patch("ingestion.stages.content_preparation.chunk_content")
-@patch("ingestion.stages.content_preparation._describe_dense_table")
+@patch("ingestion.processors.xlsx.content_preparation._describe_dense_table")
 def test_prepare_page_persists_description_generation_mode(
     mock_describe,
-    mock_chunk,
 ):
     """Prepared dense pages persist the description generation mode."""
     mock_describe.return_value = (
@@ -64,19 +61,15 @@ def test_prepare_page_persists_description_generation_mode(
         _make_dense_description(),
         "deterministic_fallback",
     )
-    mock_chunk.return_value = [ContentChunk(0, "# Dense Table", 50, True)]
 
-    result = _prepare_page(_make_dense_page(), MagicMock(), 8191)
+    result = prepare_xlsx_page(_make_dense_page(), MagicMock())
 
     assert result.description_generation_mode == "deterministic_fallback"
 
 
-@patch("ingestion.stages.content_preparation.chunk_content")
-def test_prepare_page_passthrough_leaves_generation_mode_empty(mock_chunk):
+def test_prepare_page_passthrough_leaves_generation_mode_empty():
     """Non-dense pages do not set a dense-table generation mode."""
-    mock_chunk.return_value = [ContentChunk(0, "content", 10)]
-
-    result = _prepare_page(
+    result = prepare_xlsx_page(
         {
             "page_number": 1,
             "page_title": "Notes",
@@ -84,7 +77,6 @@ def test_prepare_page_passthrough_leaves_generation_mode_empty(mock_chunk):
             "metadata": {"handling_mode": "page_like"},
         },
         MagicMock(),
-        8191,
     )
 
     assert result.description_generation_mode == ""

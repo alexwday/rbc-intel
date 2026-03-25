@@ -1,0 +1,61 @@
+stage: content_chunking
+version: "1.0"
+description: >
+  Identify natural topic breakpoints in oversized page content
+  so it can be split into embeddable chunks.
+
+system_prompt: >
+  You are a document segmentation agent. You identify natural
+  topic boundaries in document content for chunking. Your
+  goal is to split content at logical section breaks so each
+  chunk covers a coherent topic. Always use the provided tool.
+
+user_prompt: >
+  The following document page exceeds the embedding token limit
+  and must be split into smaller chunks. Each line is numbered.
+
+
+  Identify line numbers where natural topic breaks occur.
+  Return the line numbers where each new chunk should START
+  (the first chunk always starts at line 1, so do not include
+  line 1 in your breakpoints).
+
+
+  Guidelines:
+  - Split at natural topic boundaries (section headers,
+    subject changes, paragraph breaks between topics)
+  - Do NOT split inside a markdown table (between the header
+    row and the last data row)
+  - Aim for chunks of roughly 1000 tokens each
+  - Retrieval will expand to the full page, so chunks do not
+    need to be fully self-contained
+  - Prefer fewer, larger chunks over many tiny ones
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: identify_chunk_breakpoints
+      description: >
+        Identify line numbers where content should be split
+        into embeddable chunks.
+      parameters:
+        type: object
+        properties:
+          breakpoints:
+            type: array
+            items:
+              type: integer
+            description: >
+              Line numbers where new chunks should start.
+              Each number refers to the numbered lines in the
+              input. Do not include line 1.
+          rationale:
+            type: string
+            description: >
+              Brief explanation of why these breakpoints were
+              chosen.
+        required:
+          - breakpoints
+          - rationale

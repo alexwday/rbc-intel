@@ -1,10 +1,10 @@
-"""Tests for ingestion.connections.oauth."""
+"""Tests for ingestion.utils.oauth."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.connections.oauth import (
+from ingestion.utils.oauth import (
     OAuthClient,
     _should_retry_with_body_credentials,
 )
@@ -43,7 +43,7 @@ def _mock_token_response(
 def test_get_token_fetches_on_first_call():
     """First call fetches a new token."""
     client = OAuthClient(config=SAMPLE_CONFIG)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response()
         token = client.get_token()
     assert token == "tok-abc"
@@ -53,7 +53,7 @@ def test_get_token_fetches_on_first_call():
 def test_get_token_returns_cached():
     """Subsequent calls return cached token."""
     client = OAuthClient(config=SAMPLE_CONFIG)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response()
         client.get_token()
         token = client.get_token()
@@ -64,7 +64,7 @@ def test_get_token_returns_cached():
 def test_get_token_refreshes_when_expired():
     """Refreshes when token is near expiry."""
     client = OAuthClient(config=SAMPLE_CONFIG)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response(expires_in=1)
         client.get_token()
         assert client.is_expired()
@@ -81,7 +81,7 @@ def test_is_expired_true_when_no_token():
 def test_is_expired_false_when_fresh():
     """Not expired when token was just fetched."""
     client = OAuthClient(config=SAMPLE_CONFIG)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response(expires_in=7200)
         client.get_token()
     assert client.is_expired() is False
@@ -90,7 +90,7 @@ def test_is_expired_false_when_fresh():
 def test_is_expired_true_when_near_expiry():
     """Expired when within buffer window."""
     client = OAuthClient(config=SAMPLE_CONFIG)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response(expires_in=1)
         client.get_token()
     assert client.is_expired() is True
@@ -99,7 +99,7 @@ def test_is_expired_true_when_near_expiry():
 def test_fetch_token_with_scope():
     """Includes scope in request when set."""
     client = OAuthClient(config=SAMPLE_CONFIG)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response()
         client.get_token()
     call_data = mock.call_args.kwargs["data"]
@@ -110,7 +110,7 @@ def test_fetch_token_without_scope():
     """Omits scope when empty."""
     config = {**SAMPLE_CONFIG, "scope": ""}
     client = OAuthClient(config=config)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response()
         client.get_token()
     call_data = mock.call_args.kwargs["data"]
@@ -126,7 +126,7 @@ def test_fetch_token_fallback_to_body_credentials():
         error_description="Basic auth rejected client credentials",
     )
     ok_resp = _mock_token_response(status_code=200)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.side_effect = [fail_resp, ok_resp]
         token = client.get_token()
     assert token == "tok-abc"
@@ -145,7 +145,7 @@ def test_fetch_token_does_not_retry_on_non_auth_400():
         error_description="Requested scope is not allowed",
     )
     resp.raise_for_status.side_effect = Exception("400")
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = resp
         with pytest.raises(Exception, match="400"):
             client.get_token()
@@ -157,7 +157,7 @@ def test_fetch_token_raises_on_failure():
     client = OAuthClient(config=SAMPLE_CONFIG)
     resp = _mock_token_response(status_code=401)
     resp.raise_for_status.side_effect = Exception("401")
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = resp
         with pytest.raises(Exception, match="401"):
             client.get_token()
@@ -170,7 +170,7 @@ def test_fetch_token_default_expiry():
     resp.status_code = 200
     resp.json.return_value = {"access_token": "tok"}
     resp.raise_for_status = MagicMock()
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = resp
         client.get_token()
     assert client.is_expired() is False
@@ -179,7 +179,7 @@ def test_fetch_token_default_expiry():
 def test_verify_ssl_passed_to_request():
     """SSL verify flag is passed to requests.post."""
     client = OAuthClient(config=SAMPLE_CONFIG, verify_ssl=False)
-    with patch("ingestion.connections.oauth.requests.post") as mock:
+    with patch("ingestion.utils.oauth.requests.post") as mock:
         mock.return_value = _mock_token_response()
         client.get_token()
     assert mock.call_args.kwargs["verify"] is False

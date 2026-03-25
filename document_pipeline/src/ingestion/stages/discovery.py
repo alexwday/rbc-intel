@@ -5,7 +5,7 @@ import os
 from dataclasses import asdict
 from typing import List
 
-from ..connections.postgres import fetch_catalog_records
+from ..utils.postgres import fetch_catalog_records
 from ..utils.config import get_data_source_path
 from ..utils.file_types import (
     DiscoveryDiff,

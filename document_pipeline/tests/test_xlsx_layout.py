@@ -4,7 +4,7 @@ from datetime import date, datetime
 from openpyxl import Workbook
 from openpyxl.worksheet.table import Table
 
-from ingestion.utils.xlsx_layout import (
+from ingestion.processors.xlsx.layout import (
     SheetCell,
     SheetRegion,
     _estimate_long_text_ratio,

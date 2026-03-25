@@ -62,6 +62,15 @@ def test_console_format_without_stage():
     assert "SYSTEM" in result
 
 
+def test_console_format_shortens_nested_source_path():
+    """Nested ingestion paths are shortened to the last two segments."""
+    formatter = ConsoleFormatter()
+    record = _make_record(stage="2-EXTRACT")
+    record.pathname = "/tmp/project/src/ingestion/processors/pdf/processor.py"
+    result = formatter.format(record)
+    assert "pdf/processor.py" in result
+
+
 def test_console_format_warning_color():
     """Warning level uses a different color."""
     formatter = ConsoleFormatter()
@@ -128,6 +137,15 @@ def test_file_format_without_stage():
     record = _make_record()
     result = formatter.format(record)
     assert "SYSTEM" in result
+
+
+def test_file_format_shortens_nested_source_path():
+    """Nested ingestion paths are shortened to the last two segments."""
+    formatter = FileFormatter()
+    record = _make_record(stage="4-ENRICHMENT")
+    record.pathname = "/tmp/project/src/ingestion/utils/llm.py"
+    result = formatter.format(record)
+    assert "utils/llm.py:10" in result
 
 
 def test_file_format_includes_level():

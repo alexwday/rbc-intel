@@ -9,9 +9,10 @@ import openai
 import pytest
 
 from helpers import make_extraction_prompt
-from ingestion.processors.pptx import (
+from ingestion.processors.pptx.processor import (
     RenderedPdf,
     call_vision,
+    extract_page_text,
     open_rendered_pdf,
     parse_vision_response,
     process_page,
@@ -66,7 +67,7 @@ def _make_prompt():
 # -- open_rendered_pdf -----------------------------------------------
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_open_rendered_pdf_success(mock_fitz):
     """Opens a PDF and exposes total pages for streaming."""
     mock_doc = MagicMock()
@@ -83,7 +84,7 @@ def test_open_rendered_pdf_success(mock_fitz):
     mock_fitz.TOOLS.mupdf_display_errors.assert_any_call(False)
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_open_rendered_pdf_open_fails(mock_fitz):
     """Raises when PDF cannot be opened."""
     mock_fitz.open.side_effect = RuntimeError("corrupt")
@@ -96,7 +97,7 @@ def test_open_rendered_pdf_open_fails(mock_fitz):
 # -- render_page -----------------------------------------------------
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_render_page_success(_mock_fitz):
     """Renders a single page to PNG bytes."""
     mock_page = MagicMock()
@@ -113,7 +114,7 @@ def test_render_page_success(_mock_fitz):
     mock_doc.load_page.assert_called_once_with(0)
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_render_page_page_fails(_mock_fitz):
     """Raises when a page fails to render."""
     bad_page = MagicMock()
@@ -135,10 +136,42 @@ def test_render_page_out_of_range():
         render_page(rendered, 2)
 
 
+# -- extract_page_text -----------------------------------------------
+
+
+def test_extract_page_text_success():
+    """Extracts text from a valid page."""
+    mock_page = MagicMock()
+    mock_page.get_text.return_value = "  Hello world  "
+    mock_doc = MagicMock()
+    mock_doc.load_page.return_value = mock_page
+    rendered = RenderedPdf(Path("test.pdf"), mock_doc, "matrix", 3)
+
+    result = extract_page_text(rendered, 2)
+    assert result == "Hello world"
+    mock_doc.load_page.assert_called_once_with(1)
+
+
+def test_extract_page_text_out_of_range():
+    """Returns empty string for out-of-range page number."""
+    rendered = RenderedPdf(Path("test.pdf"), MagicMock(), "matrix", 2)
+    assert extract_page_text(rendered, 0) == ""
+    assert extract_page_text(rendered, 3) == ""
+
+
+def test_extract_page_text_fitz_error():
+    """Returns empty string when PyMuPDF raises an error."""
+    mock_doc = MagicMock()
+    mock_doc.load_page.side_effect = RuntimeError("corrupt page")
+    rendered = RenderedPdf(Path("test.pdf"), mock_doc, "matrix", 2)
+
+    assert extract_page_text(rendered, 1) == ""
+
+
 # -- shrink_image ----------------------------------------------------
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_shrink_image(mock_fitz):
     """Shrinks image to half resolution."""
     mock_pix = MagicMock()
@@ -153,7 +186,7 @@ def test_shrink_image(mock_fitz):
 # -- split_image -----------------------------------------------------
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_split_image_portrait(mock_fitz):
     """Portrait images split into top and bottom halves."""
     mock_src = MagicMock()
@@ -180,7 +213,7 @@ def test_split_image_portrait(mock_fitz):
     mock_fitz.IRect.assert_any_call(0, 50, 80, 100)
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_split_image_landscape(mock_fitz):
     """Landscape images split into left and right halves."""
     mock_src = MagicMock()
@@ -207,7 +240,7 @@ def test_split_image_landscape(mock_fitz):
     mock_fitz.IRect.assert_any_call(100, 0, 200, 100)
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_split_image_too_short(mock_fitz):
     """Very short portrait images raise ValueError."""
     mock_src = MagicMock()
@@ -219,7 +252,7 @@ def test_split_image_too_short(mock_fitz):
         split_image(b"tiny-png")
 
 
-@patch("ingestion.processors.pptx.fitz")
+@patch("ingestion.processors.pptx.processor.fitz")
 def test_split_image_too_narrow_landscape(mock_fitz):
     """Very narrow landscape images raise ValueError."""
     mock_src = MagicMock()
@@ -359,7 +392,7 @@ def test_call_vision_passes_explicit_detail():
     assert image_block["image_url"]["detail"] == "high"
 
 
-@patch("ingestion.processors.pptx.time.sleep")
+@patch("ingestion.processors.pptx.processor.time.sleep")
 def test_call_vision_retries_on_transient_error(mock_sleep):
     """Retries on retryable errors with exponential backoff."""
     mock_llm = MagicMock()
@@ -375,7 +408,7 @@ def test_call_vision_retries_on_transient_error(mock_sleep):
     mock_sleep.assert_called_once_with(2.0)
 
 
-@patch("ingestion.processors.pptx.time.sleep")
+@patch("ingestion.processors.pptx.processor.time.sleep")
 def test_call_vision_exhausts_retries(mock_sleep):
     """Raises after max retries exhausted."""
     mock_llm = MagicMock()
@@ -386,6 +419,38 @@ def test_call_vision_exhausts_retries(mock_sleep):
         call_vision(mock_llm, b"img", prompt, "required")
     assert mock_llm.call.call_count == 3
     assert mock_sleep.call_count == 2
+
+
+def test_call_vision_includes_extracted_text():
+    """Extracted text is appended to user prompt when provided."""
+    mock_llm = MagicMock()
+    mock_llm.call.return_value = _make_vision_response()
+    prompt = _make_prompt()
+
+    call_vision(
+        mock_llm,
+        b"img",
+        prompt,
+        "required",
+        extracted_text="Some slide text",
+    )
+    messages = mock_llm.call.call_args[1]["messages"]
+    user_text = messages[1]["content"][1]["text"]
+    assert "Programmatic Text Extraction" in user_text
+    assert "Some slide text" in user_text
+
+
+def test_call_vision_no_extracted_text_uses_plain_prompt():
+    """Empty extracted_text leaves user prompt unchanged."""
+    mock_llm = MagicMock()
+    mock_llm.call.return_value = _make_vision_response()
+    prompt = _make_prompt()
+
+    call_vision(mock_llm, b"img", prompt, "required", extracted_text="")
+    messages = mock_llm.call.call_args[1]["messages"]
+    user_text = messages[1]["content"][1]["text"]
+    assert user_text == prompt["user_prompt"]
+    assert "Programmatic Text Extraction" not in user_text
 
 
 def test_call_vision_non_retryable_raises():
@@ -400,7 +465,7 @@ def test_call_vision_non_retryable_raises():
 
 
 @patch(
-    "ingestion.processors.pptx.get_pptx_vision_max_retries",
+    "ingestion.processors.pptx.processor.get_pptx_vision_max_retries",
     return_value=0,
 )
 def test_call_vision_zero_retries_raises_runtime_error(
@@ -445,7 +510,7 @@ def test_process_page_high_detail():
 
 
 @patch(
-    "ingestion.processors.pptx.shrink_image",
+    "ingestion.processors.pptx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_half_dpi(_mock_shrink):
@@ -464,11 +529,11 @@ def test_process_page_half_dpi(_mock_shrink):
 
 
 @patch(
-    "ingestion.processors.pptx.split_image",
+    "ingestion.processors.pptx.processor.split_image",
     return_value=(b"top", b"bot", "vertical"),
 )
 @patch(
-    "ingestion.processors.pptx.shrink_image",
+    "ingestion.processors.pptx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_split_halves(_mock_shrink, _mock_split):
@@ -491,11 +556,11 @@ def test_process_page_split_halves(_mock_shrink, _mock_split):
 
 
 @patch(
-    "ingestion.processors.pptx.split_image",
+    "ingestion.processors.pptx.processor.split_image",
     return_value=(b"top", b"bot", "vertical"),
 )
 @patch(
-    "ingestion.processors.pptx.shrink_image",
+    "ingestion.processors.pptx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_all_attempts_fail(_mock_shrink, _mock_split):
@@ -535,7 +600,7 @@ def test_process_page_high_detail_passes_detail_param():
 
 
 @patch(
-    "ingestion.processors.pptx.shrink_image",
+    "ingestion.processors.pptx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_falls_back_on_bad_request(_mock_shrink):
@@ -553,7 +618,7 @@ def test_process_page_falls_back_on_bad_request(_mock_shrink):
 
 
 @patch(
-    "ingestion.processors.pptx.shrink_image",
+    "ingestion.processors.pptx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_falls_back_on_malformed_tool_response(

@@ -1,6 +1,6 @@
-"""Load prompt definitions from packaged YAML resources."""
+"""Load prompt definitions from YAML resources."""
 
-from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -167,11 +167,15 @@ def _validate_prompt(name: str, data: Any) -> dict[str, Any]:
     return prompt
 
 
-def load_prompt(name: str) -> dict[str, Any]:
+def load_prompt(
+    name: str,
+    prompts_dir: Path | None = None,
+) -> dict[str, Any]:
     """Load a prompt definition by filename stem.
 
     Params:
-        name: Prompt filename stem (e.g. "startup_health_check")
+        name: Prompt filename stem (e.g. "page_extraction")
+        prompts_dir: Optional directory containing prompt YAML files
 
     Returns:
         dict with validated keys such as stage, version,
@@ -179,15 +183,21 @@ def load_prompt(name: str) -> dict[str, Any]:
         and tool_choice
 
     Example:
-        >>> prompt = load_prompt("startup_health_check")
+        >>> prompt = load_prompt("page_extraction", prompts_dir)
         >>> prompt["stage"]
-        "startup"
+        "extraction"
     """
-    resource = files("ingestion").joinpath("prompts", f"{name}.yaml")
-    if not resource.is_file():
+    if prompts_dir is None:
+        raise ValueError(
+            "prompts_dir is required — all prompts live in "
+            "processor-specific directories"
+        )
+    directory = prompts_dir
+    path = directory / f"{name}.yaml"
+    if not path.is_file():
         raise FileNotFoundError(f"Prompt file not found: {name}.yaml")
 
-    with resource.open("r", encoding="utf-8") as file_handle:
+    with path.open("r", encoding="utf-8") as file_handle:
         try:
             data = yaml.safe_load(file_handle)
         except yaml.YAMLError as exc:

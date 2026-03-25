@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from openpyxl import Workbook
 
-from ingestion.processors.xlsx import process_xlsx
+from ingestion.processors.xlsx.processor import process_xlsx
 
 
 def _make_fake_encoding() -> MagicMock:
@@ -81,7 +81,7 @@ def _save_workbook(path, sheets: list[tuple[str, list[list[object]]]]) -> None:
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -89,13 +89,17 @@ def _save_workbook(path, sheets: list[tuple[str, list[list[object]]]]) -> None:
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_dense_numeric_sheet_fits_inline_but_stays_dense(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):
@@ -148,7 +152,7 @@ def test_process_xlsx_dense_numeric_sheet_fits_inline_but_stays_dense(
 
 
 @patch(
-    "ingestion.processors.xlsx.get_stage_model_config",
+    "ingestion.processors.xlsx.processor.get_stage_model_config",
     return_value={
         "model": "gpt-5-mini",
         "max_tokens": 800,
@@ -156,13 +160,17 @@ def test_process_xlsx_dense_numeric_sheet_fits_inline_but_stays_dense(
     },
 )
 @patch(
-    "ingestion.processors.xlsx.tiktoken.encoding_for_model",
+    "ingestion.processors.xlsx.processor.tiktoken.encoding_for_model",
     return_value=_make_fake_encoding(),
 )
 @patch(
-    "ingestion.processors.xlsx.get_xlsx_sheet_token_limit", return_value=12000
+    "ingestion.processors.xlsx.processor.get_xlsx_sheet_token_limit",
+    return_value=12000,
 )
-@patch("ingestion.processors.xlsx.load_prompt", return_value=_make_prompt())
+@patch(
+    "ingestion.processors.xlsx.processor.load_prompt",
+    return_value=_make_prompt(),
+)
 def test_process_xlsx_text_heavy_record_sheet_stays_dense_candidate(
     _prompt, _token_limit, _encoding, _model_config, tmp_path
 ):

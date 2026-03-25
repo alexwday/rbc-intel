@@ -3,13 +3,13 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from ingestion.stages.content_preparation import (
+from ingestion.processors.xlsx.content_preparation import (
     _build_deterministic_dense_description,
     _describe_dense_table,
     batch_columns_for_description,
     estimate_dense_description_tokens,
 )
-from ingestion.utils.content_types import ColumnProfile, TableEDA
+from ingestion.processors.xlsx.types import ColumnProfile, TableEDA
 
 
 def _make_eda(column_count: int = 4) -> TableEDA:
@@ -72,7 +72,7 @@ def _make_eda(column_count: int = 4) -> TableEDA:
     )
 
 
-def _dense_prompt(name: str) -> dict:
+def _dense_prompt(name: str, _prompts_dir=None) -> dict:
     """Return a mock prompt for dense-table description stages."""
     if name == "dense_table_description":
         return {
@@ -177,7 +177,7 @@ def _make_merge_response() -> dict:
 def test_estimate_dense_description_tokens():
     """Dense table token estimation returns a positive prompt size."""
     with patch(
-        "ingestion.utils.dense_table_description.load_prompt"
+        "ingestion.processors.xlsx.dense_table.load_prompt"
     ) as mock_load_prompt:
         mock_load_prompt.side_effect = _dense_prompt
 
@@ -191,7 +191,7 @@ def test_batch_columns_for_description_preserves_column_order():
         return len(eda.columns) * 100
 
     with patch(
-        "ingestion.utils.dense_table_description."
+        "ingestion.processors.xlsx.dense_table."
         "estimate_dense_description_tokens"
     ) as mock_estimate:
         mock_estimate.side_effect = _estimate
@@ -220,18 +220,19 @@ def test_describe_dense_table_uses_one_shot_within_budget():
 
     with (
         patch(
-            "ingestion.stages.content_preparation._build_dense_table_eda"
+            "ingestion.processors.xlsx.content_preparation."
+            "_build_dense_table_eda"
         ) as mock_build_eda,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "estimate_dense_description_tokens"
         ) as mock_estimate,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "get_dense_table_description_max_prompt_tokens"
         ) as mock_budget,
         patch(
-            "ingestion.utils.dense_table_description.load_prompt"
+            "ingestion.processors.xlsx.dense_table.load_prompt"
         ) as mock_load_prompt,
     ):
         mock_build_eda.return_value = eda
@@ -266,25 +267,26 @@ def test_describe_dense_table_batches_when_over_budget():
 
     with (
         patch(
-            "ingestion.stages.content_preparation._build_dense_table_eda"
+            "ingestion.processors.xlsx.content_preparation."
+            "_build_dense_table_eda"
         ) as mock_build_eda,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "estimate_dense_description_tokens"
         ) as mock_estimate,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "batch_columns_for_description"
         ) as mock_batch_columns,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "get_dense_table_description_max_prompt_tokens"
         ) as mock_budget,
         patch(
-            "ingestion.utils.dense_table_description._estimate_prompt_tokens"
+            "ingestion.processors.xlsx.dense_table._estimate_prompt_tokens"
         ) as mock_merge_tokens,
         patch(
-            "ingestion.utils.dense_table_description.load_prompt"
+            "ingestion.processors.xlsx.dense_table.load_prompt"
         ) as mock_load_prompt,
     ):
         mock_build_eda.return_value = eda
@@ -317,22 +319,23 @@ def test_describe_dense_table_falls_back_to_deterministic_on_batch_failure():
 
     with (
         patch(
-            "ingestion.stages.content_preparation._build_dense_table_eda"
+            "ingestion.processors.xlsx.content_preparation."
+            "_build_dense_table_eda"
         ) as mock_build_eda,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "estimate_dense_description_tokens"
         ) as mock_estimate,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "batch_columns_for_description"
         ) as mock_batch_columns,
         patch(
-            "ingestion.utils.dense_table_description."
+            "ingestion.processors.xlsx.dense_table."
             "get_dense_table_description_max_prompt_tokens"
         ) as mock_budget,
         patch(
-            "ingestion.utils.dense_table_description.load_prompt"
+            "ingestion.processors.xlsx.dense_table.load_prompt"
         ) as mock_load_prompt,
     ):
         mock_build_eda.return_value = eda

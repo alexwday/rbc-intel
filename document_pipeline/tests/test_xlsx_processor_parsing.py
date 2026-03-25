@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from ingestion.processors.xlsx import _parse_classification_response
+from ingestion.processors.xlsx.processor import _parse_classification_response
 
 
 @pytest.mark.parametrize(

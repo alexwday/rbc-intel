@@ -1,0 +1,44 @@
+stage: finalization
+version: "1.0"
+description: >
+  Roll page-level enrichment into document-level summary, catalog
+  description, and usage guidance.
+
+system_prompt: >
+  You are a document summarization analyst. Produce concise
+  document-level fields from the ordered page summaries.
+  Always use the provided tool.
+
+user_prompt: |
+  Generate document-level rollup fields for this file.
+
+  ## Document Context
+  - File type: {filetype}
+  - Total pages: {total_pages}
+
+  ## Page Summaries
+  {page_summaries_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: rollup_document
+      description: Generate document summary, description, and usage
+      parameters:
+        type: object
+        properties:
+          document_summary:
+            type: string
+            description: 3-5 sentence summary of the whole document
+          document_description:
+            type: string
+            description: 1-2 sentence catalog description
+          document_usage:
+            type: string
+            description: 1-2 sentence research usage guidance
+        required:
+          - document_summary
+          - document_description
+          - document_usage

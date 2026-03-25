@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.processors.pptx import (
-    _VALID_SLIDE_TYPES,
+from ingestion.processors.pptx.processor import (
+    _VALID_PAGE_TYPES,
     _classify_slide,
     _classify_slide_with_retry,
     _parse_slide_classification,
@@ -71,19 +71,19 @@ def _make_classification_prompt():
 # ── _parse_slide_classification ──────────────────────────
 
 
-@pytest.mark.parametrize("slide_type", sorted(_VALID_SLIDE_TYPES))
+@pytest.mark.parametrize("slide_type", sorted(_VALID_PAGE_TYPES))
 def test_parse_valid_slide_types(slide_type):
     """Each valid slide type is parsed without fallback."""
     response = _make_slide_classification_response(slide_type=slide_type)
     result = _parse_slide_classification(response)
-    assert result["slide_type_guess"] == slide_type
+    assert result["page_type"] == slide_type
 
 
 def test_parse_unknown_slide_type_falls_back():
     """Unknown slide_type falls back to content_slide."""
     response = _make_slide_classification_response(slide_type="unknown_type")
     result = _parse_slide_classification(response)
-    assert result["slide_type_guess"] == "content_slide"
+    assert result["page_type"] == "content_slide"
 
 
 def test_parse_missing_slide_type_defaults():
@@ -100,7 +100,7 @@ def test_parse_missing_slide_type_defaults():
     ] = json.dumps(raw)
 
     result = _parse_slide_classification(response)
-    assert result["slide_type_guess"] == "content_slide"
+    assert result["page_type"] == "content_slide"
 
 
 def test_parse_boolean_flags_all_true():
@@ -116,6 +116,17 @@ def test_parse_boolean_flags_all_true():
     assert result["contains_dashboard"] is True
     assert result["contains_comparison_layout"] is True
     assert result["has_dense_visual_content"] is True
+
+
+def test_parse_confidence_and_rationale():
+    """Confidence and rationale are preserved from LLM response."""
+    response = _make_slide_classification_response(
+        confidence=0.95,
+        rationale="Chart with revenue data.",
+    )
+    result = _parse_slide_classification(response)
+    assert result["classification_confidence"] == 0.95
+    assert result["classification_rationale"] == "Chart with revenue data."
 
 
 def test_parse_missing_choices_raises():
@@ -170,7 +181,7 @@ def test_parse_missing_arguments_raises():
 
 
 def test_classify_slide_valid():
-    """Valid classification returns correct slide_type_guess."""
+    """Valid classification returns correct page_type."""
     llm = MagicMock()
     llm.call.return_value = _make_slide_classification_response(
         slide_type="chart_slide"
@@ -180,7 +191,7 @@ def test_classify_slide_valid():
     result = _classify_slide(
         llm, prompt, page_number=3, page_title="Revenue", content="Q3"
     )
-    assert result["slide_type_guess"] == "chart_slide"
+    assert result["page_type"] == "chart_slide"
 
     call_args = llm.call.call_args
     messages = call_args.kwargs["messages"]
@@ -193,7 +204,7 @@ def test_classify_slide_valid():
 # ── _classify_slide_with_retry ───────────────────────────
 
 
-@patch("ingestion.processors.pptx.time.sleep")
+@patch("ingestion.processors.pptx.processor.time.sleep")
 def test_retry_succeeds_first_attempt(mock_sleep):
     """Succeeds on first attempt without retrying."""
     llm = MagicMock()
@@ -201,11 +212,11 @@ def test_retry_succeeds_first_attempt(mock_sleep):
     prompt = _make_classification_prompt()
 
     result = _classify_slide_with_retry(llm, prompt, 1, "Title", "Content")
-    assert result["slide_type_guess"] == "content_slide"
+    assert result["page_type"] == "content_slide"
     mock_sleep.assert_not_called()
 
 
-@patch("ingestion.processors.pptx.time.sleep")
+@patch("ingestion.processors.pptx.processor.time.sleep")
 def test_retry_succeeds_after_failure(mock_sleep):
     """Retries on ValueError then succeeds."""
     llm = MagicMock()
@@ -216,11 +227,11 @@ def test_retry_succeeds_after_failure(mock_sleep):
     prompt = _make_classification_prompt()
 
     result = _classify_slide_with_retry(llm, prompt, 2, "Agenda", "Items")
-    assert result["slide_type_guess"] == "agenda_slide"
+    assert result["page_type"] == "agenda_slide"
     mock_sleep.assert_called_once()
 
 
-@patch("ingestion.processors.pptx.time.sleep")
+@patch("ingestion.processors.pptx.processor.time.sleep")
 def test_retry_exhausted_raises_runtime_error(mock_sleep):
     """Exhausts retries and raises RuntimeError."""
     llm = MagicMock()

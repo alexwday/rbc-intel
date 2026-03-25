@@ -2,12 +2,12 @@
 
 import json
 
-from ingestion.stages.content_preparation import (
+from ingestion.processors.xlsx.content_preparation import (
     _build_column_roles_section,
     _build_column_table,
     _parse_description_response,
 )
-from ingestion.utils.content_types import (
+from ingestion.processors.xlsx.types import (
     ColumnProfile,
     DenseTableDescription,
     TableEDA,

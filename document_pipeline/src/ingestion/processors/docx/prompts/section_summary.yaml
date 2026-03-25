@@ -1,0 +1,63 @@
+stage: finalization
+version: "1.0"
+description: >
+  Generate a structured JSON summary for one section or subsection in a DOCX.
+
+system_prompt: >
+  You are a document summarization analyst. Review the provided page content and
+  produce a compact structured summary for the section. Always use the provided
+  tool.
+
+user_prompt: |
+  Summarize this section as structured JSON.
+
+  ## Section Context
+  - File type: {filetype}
+  - Title: {section_title}
+  - Page range: {page_start}-{page_end}
+
+  ## Section Pages
+  {page_summaries_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: generate_section_summary
+      description: Generate a structured summary for one section
+      parameters:
+        type: object
+        properties:
+          overview:
+            type: string
+          key_topics:
+            type: array
+            items:
+              type: string
+          key_metrics:
+            type: object
+            additionalProperties:
+              type: string
+            description: >
+              Named metrics with their values as key-value pairs.
+              Example: {"CET1 ratio": "13.4%", "NCO rate": "0.41%",
+              "Impaired loans": "$1.9B"}. Extract every numeric
+              metric mentioned in the section.
+          key_findings:
+            type: array
+            items:
+              type: string
+          notable_facts:
+            type: array
+            items:
+              type: string
+          is_fallback:
+            type: boolean
+        required:
+          - overview
+          - key_topics
+          - key_metrics
+          - key_findings
+          - notable_facts
+          - is_fallback

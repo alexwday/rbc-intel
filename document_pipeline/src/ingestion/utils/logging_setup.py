@@ -8,7 +8,7 @@ from pathlib import Path
 LOGS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "logs"
 
 STAGE_WIDTH = 20
-SOURCE_WIDTH = 20
+SOURCE_WIDTH = 28
 
 RESET = "\033[0m"
 BOLD = "\033[1m"
@@ -18,6 +18,20 @@ WHITE = "\033[37m"
 BRIGHT_RED = "\033[91m"
 BRIGHT_YELLOW = "\033[93m"
 BRIGHT_CYAN = "\033[96m"
+
+
+def _short_source_path(pathname: str) -> str:
+    """Return a compact source path for log output."""
+    path = Path(pathname)
+    parts = path.parts
+    if "ingestion" in parts:
+        index = parts.index("ingestion")
+        relative_parts = parts[index + 1 :]
+        if len(relative_parts) >= 2:
+            return "/".join(relative_parts[-2:])
+        if relative_parts:
+            return relative_parts[-1]
+    return path.name
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -51,7 +65,7 @@ class ConsoleFormatter(logging.Formatter):
         """Build colored, column-aligned log line."""
         timestamp = self.formatTime(record)
         stage = getattr(record, "stage", "SYSTEM")
-        source = record.filename
+        source = _short_source_path(record.pathname)
         color = self.LEVEL_COLORS.get(record.levelno, WHITE)
         line = (
             f"{DIM}{timestamp}{RESET} \u2502 "
@@ -90,7 +104,7 @@ class FileFormatter(logging.Formatter):
         timestamp = self.formatTime(record)
         level = record.levelname
         stage = getattr(record, "stage", "SYSTEM")
-        source = f"{record.filename}:{record.lineno}"
+        source = f"{_short_source_path(record.pathname)}:{record.lineno}"
         line = (
             f"{timestamp} | {level:<8} "
             f"| {stage:<{STAGE_WIDTH}} "

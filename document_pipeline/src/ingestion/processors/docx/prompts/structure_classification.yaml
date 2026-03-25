@@ -1,0 +1,43 @@
+stage: finalization
+version: "1.0"
+description: >
+  Classify the overall document structure type for a DOCX file.
+
+system_prompt: >
+  You are a document structure analyst. Review the ordered page titles and
+  summaries, then classify the overall organization pattern of the document.
+  Always use the provided tool.
+
+user_prompt: |
+  Classify the structure type of this document.
+
+  ## Document Context
+  - File type: {filetype}
+  - Total pages: {total_pages}
+
+  ## Page Summaries
+  {page_summaries_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: classify_document_structure
+      description: Classify the overall document structure
+      parameters:
+        type: object
+        properties:
+          structure_type:
+            type: string
+            description: >
+              One of chapters, sections, topic_based, semantic, slides, sheets.
+          confidence:
+            type: string
+            description: One of low, medium, high.
+          has_toc:
+            type: boolean
+        required:
+          - structure_type
+          - confidence
+          - has_toc

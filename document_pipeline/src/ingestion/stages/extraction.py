@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from typing import List
 
-from ..connections.llm import LLMClient
+from ..utils.llm import LLMClient
 from ..processors.docx import process_docx
 from ..processors.pdf import process_pdf
 from ..processors.pptx import process_pptx

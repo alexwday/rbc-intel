@@ -1,13 +1,13 @@
 """Focused markdown escaping tests for dense-table content preparation."""
 
-from ingestion.stages.content_preparation import (
+from ingestion.processors.xlsx.content_preparation import (
     _build_column_table,
     _build_data_preview,
     _build_description_message,
     _escape_markdown_table_cell,
     _format_filter_line,
 )
-from ingestion.utils.content_types import (
+from ingestion.processors.xlsx.types import (
     ColumnProfile,
     DenseTableDescription,
     TableEDA,

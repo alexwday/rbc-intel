@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.utils.content_types import (
+from ingestion.processors.xlsx.types import (
     ColumnProfile,
     DenseTableDescription,
     TableEDA,
 )
-from ingestion.utils.dense_table_description import (
+from ingestion.processors.xlsx.dense_table import (
     _build_default_column_description,
     _build_deterministic_sample_queries,
     _classify_column_role,
@@ -334,7 +334,7 @@ def test_batch_columns_for_description_empty_and_oversized_paths():
         return 20
 
     with patch(
-        "ingestion.utils.dense_table_description."
+        "ingestion.processors.xlsx.dense_table."
         "estimate_dense_description_tokens"
     ) as mock_estimate:
         mock_estimate.side_effect = _estimate
@@ -344,7 +344,7 @@ def test_batch_columns_for_description_empty_and_oversized_paths():
 
     one_col_eda = _make_eda([_make_column(name="Only")])
     with patch(
-        "ingestion.utils.dense_table_description."
+        "ingestion.processors.xlsx.dense_table."
         "estimate_dense_description_tokens"
     ) as mock_estimate:
         mock_estimate.return_value = 50
@@ -375,10 +375,10 @@ def test_merge_batched_dense_description_over_budget_uses_fallback():
 
     with (
         patch(
-            "ingestion.utils.dense_table_description.load_prompt"
+            "ingestion.processors.xlsx.dense_table.load_prompt"
         ) as mock_load_prompt,
         patch(
-            "ingestion.utils.dense_table_description._estimate_prompt_tokens"
+            "ingestion.processors.xlsx.dense_table._estimate_prompt_tokens"
         ) as mock_tokens,
     ):
         mock_load_prompt.return_value = {
@@ -407,7 +407,7 @@ def test_describe_dense_table_batched_single_batch_uses_fallback():
     llm = MagicMock()
 
     with patch(
-        "ingestion.utils.dense_table_description."
+        "ingestion.processors.xlsx.dense_table."
         "batch_columns_for_description"
     ) as mock_batches:
         mock_batches.return_value = [eda.columns]

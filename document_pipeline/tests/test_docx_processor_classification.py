@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.processors.docx import (
+from ingestion.processors.docx.processor import (
     _CONTEXT_MAX_CHARS,
     _CONTEXT_MIN_CHARS,
     _classify_continuation_with_retry,
@@ -199,7 +199,7 @@ def test_classify_page_continuation_truncates_inputs():
 # ── _classify_continuation_with_retry ─────────────────────────
 
 
-@patch("ingestion.processors.docx.time.sleep")
+@patch("ingestion.processors.docx.processor.time.sleep")
 def test_classify_continuation_with_retry_first_attempt(
     mock_sleep,
 ):
@@ -218,7 +218,7 @@ def test_classify_continuation_with_retry_first_attempt(
     mock_sleep.assert_not_called()
 
 
-@patch("ingestion.processors.docx.time.sleep")
+@patch("ingestion.processors.docx.processor.time.sleep")
 def test_classify_continuation_with_retry_transient_then_ok(
     mock_sleep,
 ):
@@ -238,9 +238,9 @@ def test_classify_continuation_with_retry_transient_then_ok(
     mock_sleep.assert_called_once()
 
 
-@patch("ingestion.processors.docx.time.sleep")
+@patch("ingestion.processors.docx.processor.time.sleep")
 def test_classify_continuation_with_retry_exhausted(
-    mock_sleep,
+    _mock_sleep,
 ):
     """Exhausts retries and raises RuntimeError."""
     llm = MagicMock()

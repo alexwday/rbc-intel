@@ -9,7 +9,7 @@ import openai
 import pytest
 
 from helpers import make_extraction_prompt
-from ingestion.processors.docx import (
+from ingestion.processors.docx.processor import (
     RenderedPdf,
     call_vision,
     open_rendered_pdf,
@@ -66,7 +66,7 @@ def _make_prompt():
 # -- open_rendered_pdf -----------------------------------------------
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_open_rendered_pdf_success(mock_fitz):
     """Opens a PDF and exposes total pages for streaming."""
     mock_doc = MagicMock()
@@ -83,7 +83,7 @@ def test_open_rendered_pdf_success(mock_fitz):
     mock_fitz.TOOLS.mupdf_display_errors.assert_any_call(False)
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_open_rendered_pdf_open_fails(mock_fitz):
     """Raises when PDF cannot be opened."""
     mock_fitz.open.side_effect = RuntimeError("corrupt")
@@ -96,7 +96,7 @@ def test_open_rendered_pdf_open_fails(mock_fitz):
 # -- render_page -----------------------------------------------------
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_render_page_success(_mock_fitz):
     """Renders a single page to PNG bytes."""
     mock_page = MagicMock()
@@ -113,7 +113,7 @@ def test_render_page_success(_mock_fitz):
     mock_doc.load_page.assert_called_once_with(0)
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_render_page_page_fails(_mock_fitz):
     """Raises when a page fails to render."""
     bad_page = MagicMock()
@@ -138,7 +138,7 @@ def test_render_page_out_of_range():
 # -- shrink_image ----------------------------------------------------
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_shrink_image(mock_fitz):
     """Shrinks image to half resolution."""
     mock_pix = MagicMock()
@@ -153,7 +153,7 @@ def test_shrink_image(mock_fitz):
 # -- split_image -----------------------------------------------------
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_split_image_portrait(mock_fitz):
     """Portrait images split into top and bottom halves."""
     mock_src = MagicMock()
@@ -180,7 +180,7 @@ def test_split_image_portrait(mock_fitz):
     mock_fitz.IRect.assert_any_call(0, 50, 80, 100)
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_split_image_landscape(mock_fitz):
     """Landscape images split into left and right halves."""
     mock_src = MagicMock()
@@ -207,7 +207,7 @@ def test_split_image_landscape(mock_fitz):
     mock_fitz.IRect.assert_any_call(100, 0, 200, 100)
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_split_image_too_short(mock_fitz):
     """Very short portrait images raise ValueError."""
     mock_src = MagicMock()
@@ -219,7 +219,7 @@ def test_split_image_too_short(mock_fitz):
         split_image(b"tiny-png")
 
 
-@patch("ingestion.processors.docx.fitz")
+@patch("ingestion.processors.docx.processor.fitz")
 def test_split_image_too_narrow_landscape(mock_fitz):
     """Very narrow landscape images raise ValueError."""
     mock_src = MagicMock()
@@ -359,7 +359,7 @@ def test_call_vision_passes_explicit_detail():
     assert image_block["image_url"]["detail"] == "high"
 
 
-@patch("ingestion.processors.docx.time.sleep")
+@patch("ingestion.processors.docx.processor.time.sleep")
 def test_call_vision_retries_on_transient_error(mock_sleep):
     """Retries on retryable errors with exponential backoff."""
     mock_llm = MagicMock()
@@ -375,7 +375,7 @@ def test_call_vision_retries_on_transient_error(mock_sleep):
     mock_sleep.assert_called_once_with(2.0)
 
 
-@patch("ingestion.processors.docx.time.sleep")
+@patch("ingestion.processors.docx.processor.time.sleep")
 def test_call_vision_exhausts_retries(mock_sleep):
     """Raises after max retries exhausted."""
     mock_llm = MagicMock()
@@ -400,7 +400,7 @@ def test_call_vision_non_retryable_raises():
 
 
 @patch(
-    "ingestion.processors.docx.get_docx_vision_max_retries",
+    "ingestion.processors.docx.processor.get_docx_vision_max_retries",
     return_value=0,
 )
 def test_call_vision_zero_retries_raises_runtime_error(
@@ -445,7 +445,7 @@ def test_process_page_high_detail():
 
 
 @patch(
-    "ingestion.processors.docx.shrink_image",
+    "ingestion.processors.docx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_half_dpi(_mock_shrink):
@@ -464,11 +464,11 @@ def test_process_page_half_dpi(_mock_shrink):
 
 
 @patch(
-    "ingestion.processors.docx.split_image",
+    "ingestion.processors.docx.processor.split_image",
     return_value=(b"top", b"bot", "vertical"),
 )
 @patch(
-    "ingestion.processors.docx.shrink_image",
+    "ingestion.processors.docx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_split_halves(_mock_shrink, _mock_split):
@@ -491,11 +491,11 @@ def test_process_page_split_halves(_mock_shrink, _mock_split):
 
 
 @patch(
-    "ingestion.processors.docx.split_image",
+    "ingestion.processors.docx.processor.split_image",
     return_value=(b"top", b"bot", "vertical"),
 )
 @patch(
-    "ingestion.processors.docx.shrink_image",
+    "ingestion.processors.docx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_all_attempts_fail(_mock_shrink, _mock_split):
@@ -535,7 +535,7 @@ def test_process_page_high_detail_passes_detail_param():
 
 
 @patch(
-    "ingestion.processors.docx.shrink_image",
+    "ingestion.processors.docx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_falls_back_on_bad_request(_mock_shrink):
@@ -553,7 +553,7 @@ def test_process_page_falls_back_on_bad_request(_mock_shrink):
 
 
 @patch(
-    "ingestion.processors.docx.shrink_image",
+    "ingestion.processors.docx.processor.shrink_image",
     return_value=b"small",
 )
 def test_process_page_falls_back_on_malformed_tool_response(

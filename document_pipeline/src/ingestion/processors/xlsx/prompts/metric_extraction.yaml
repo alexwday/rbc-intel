@@ -1,0 +1,62 @@
+stage: finalization
+version: "1.0"
+description: >
+  Extract structured metrics from XLSX dense-table EDA and descriptions.
+
+system_prompt: >
+  You are a financial data analyst. Review the dense-table EDA and narrative
+  description, then extract metric definitions that are useful for retrieval.
+  Always use the provided tool.
+
+user_prompt: |
+  Extract structured metrics from this dense table.
+
+  Focus on business-meaningful metrics that an analyst would
+  search for. Skip internal calculation columns (names like
+  Calc_01, Formula_*, intermediate computations) and
+  implementation scaffolding. Only extract metrics with
+  recognizable financial or business meaning.
+
+  ## Sheet Context
+  - Sheet name: {sheet_name}
+  - Page number: {page_number}
+  - Used range: {used_range}
+
+  ## Dense Table EDA
+  {dense_table_eda_json}
+
+  ## Dense Table Description
+  {dense_table_description_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: extract_metrics
+      description: Extract dense-table metrics for retrieval
+      parameters:
+        type: object
+        properties:
+          metrics:
+            type: array
+            items:
+              type: object
+              properties:
+                metric_name:
+                  type: string
+                platform:
+                  type: string
+                sub_platform:
+                  type: string
+                periods_available:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - metric_name
+                - platform
+                - sub_platform
+                - periods_available
+        required:
+          - metrics

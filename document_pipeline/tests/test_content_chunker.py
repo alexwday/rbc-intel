@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.utils.content_chunker import (
+from ingestion.processors.xlsx.content_chunker import (
     _FallbackEncoding,
     _FallbackTiktoken,
     _call_chunking_llm,
@@ -58,7 +58,7 @@ def test_fallback_tiktoken_get_encoding():
     assert len(enc.encode("hello")) == 1
 
 
-@patch("ingestion.utils.content_chunker._tiktoken")
+@patch("ingestion.processors.xlsx.content_chunker._tiktoken")
 def test_get_encoder_keyerror_fallback(mock_tiktoken):
     """Falls back to o200k_base on model KeyError."""
     mock_tiktoken.encoding_for_model.side_effect = KeyError("unknown")
@@ -72,7 +72,7 @@ def test_get_encoder_keyerror_fallback(mock_tiktoken):
 def test_load_tiktoken_fallback():
     """Falls back to _FallbackTiktoken when import fails."""
     with patch(
-        "ingestion.utils.content_chunker.import_module",
+        "ingestion.processors.xlsx.content_chunker.import_module",
         side_effect=ImportError("no tiktoken"),
     ):
         result = _load_tiktoken()
@@ -293,7 +293,7 @@ def test_find_blank_line_no_blank():
 # ── _split_at_blank_line ────────────────────────────────────
 
 
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_split_at_blank_line_within_limit(mock_count):
     """Content within limit returned as-is."""
     mock_count.return_value = 100
@@ -301,7 +301,7 @@ def test_split_at_blank_line_within_limit(mock_count):
     assert result == ["short text"]
 
 
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_split_at_blank_line_splits(mock_count):
     """Oversized content split at blank line."""
     mock_count.side_effect = lambda t: (50 if len(t) < 12 else 200)
@@ -310,7 +310,7 @@ def test_split_at_blank_line_splits(mock_count):
     assert len(result) == 2
 
 
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_split_at_blank_line_single_line(mock_count):
     """Single line that exceeds limit returned as-is."""
     mock_count.return_value = 10000
@@ -318,7 +318,7 @@ def test_split_at_blank_line_single_line(mock_count):
     assert result == ["one long line"]
 
 
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_split_at_blank_line_blank_at_start(mock_count):
     """Handles blank line at position 0 by shifting to 1."""
     mock_count.side_effect = lambda t: (10 if len(t) < 3 else 200)
@@ -327,7 +327,7 @@ def test_split_at_blank_line_blank_at_start(mock_count):
     assert len(result) >= 1
 
 
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_split_at_blank_line_empty_part(mock_count):
     """Empty parts after splitting are skipped."""
     mock_count.side_effect = lambda t: (10 if len(t) < 5 else 200)
@@ -337,7 +337,7 @@ def test_split_at_blank_line_empty_part(mock_count):
         assert part.strip()
 
 
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_split_at_blank_line_recursive(mock_count):
     """Chunks exceeding limit are recursively re-split."""
     call_count = {"n": 0}
@@ -357,7 +357,7 @@ def test_split_at_blank_line_recursive(mock_count):
 # ── _call_chunking_llm ──────────────────────────────────────
 
 
-@patch("ingestion.utils.content_chunker.load_prompt")
+@patch("ingestion.processors.xlsx.content_chunker.load_prompt")
 def test_call_chunking_llm(mock_load):
     """Calls LLM and returns parsed breakpoints."""
     mock_load.return_value = {
@@ -377,7 +377,7 @@ def test_call_chunking_llm(mock_load):
 # ── chunk_content ────────────────────────────────────────────
 
 
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_chunk_content_within_limit(mock_count):
     """Small content returns single chunk with no LLM call."""
     mock_count.return_value = 100
@@ -389,8 +389,8 @@ def test_chunk_content_within_limit(mock_count):
     mock_llm.call.assert_not_called()
 
 
-@patch("ingestion.utils.content_chunker._call_chunking_llm")
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker._call_chunking_llm")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_chunk_content_llm_chunking(mock_count, mock_call_llm):
     """Oversized content uses LLM breakpoints."""
     mock_count.side_effect = lambda t: (100 if len(t) < 20 else 10000)
@@ -403,8 +403,8 @@ def test_chunk_content_llm_chunking(mock_count, mock_call_llm):
         assert chunk.chunk_index == i
 
 
-@patch("ingestion.utils.content_chunker._call_chunking_llm")
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker._call_chunking_llm")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_chunk_content_llm_failure_fallback(mock_count, mock_call_llm):
     """Falls back to blank-line splitting on LLM failure."""
     mock_count.side_effect = lambda t: (50 if len(t) < 12 else 10000)
@@ -415,8 +415,8 @@ def test_chunk_content_llm_failure_fallback(mock_count, mock_call_llm):
     assert len(chunks) == 2
 
 
-@patch("ingestion.utils.content_chunker._call_chunking_llm")
-@patch("ingestion.utils.content_chunker.count_tokens")
+@patch("ingestion.processors.xlsx.content_chunker._call_chunking_llm")
+@patch("ingestion.processors.xlsx.content_chunker.count_tokens")
 def test_chunk_content_post_llm_oversized_fallback(mock_count, mock_call_llm):
     """Chunks exceeding limit after LLM are re-split."""
     call_idx = {"n": 0}

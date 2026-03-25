@@ -57,6 +57,7 @@ max-module-lines = 1700
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "tests"]
+testpaths = ["tests"]
 
 [tool.mypy]
 mypy_path = "src:typings"

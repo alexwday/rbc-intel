@@ -2,7 +2,7 @@
 
 import pytest
 
-from ingestion.utils.table_eda import (
+from ingestion.processors.xlsx.table_eda import (
     _classify_column_dtype,
     _compute_boolean_stats,
     _compute_date_stats,
@@ -385,8 +385,8 @@ def test_score_header_cell_detects_text_header_over_numeric_column():
 
 
 def test_score_header_cell_detects_matching_text_shapes_as_data():
-    """Matching text shapes score toward headerless data detection."""
-    assert _score_header_cell("A-1", ["A-2", "A-3"]) == (2, 0)
+    """Matching text shapes score toward data but not double-counted."""
+    assert _score_header_cell("A-1", ["A-2", "A-3"]) == (1, 1)
 
 
 def test_score_header_cell_falls_back_to_generic_header_penalty():

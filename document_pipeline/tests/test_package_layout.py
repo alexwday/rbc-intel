@@ -13,6 +13,5 @@ def test_import_ingestion_package():
 
 def test_import_subpackages():
     """Core subpackages are importable."""
-    importlib.import_module("ingestion.connections")
     importlib.import_module("ingestion.utils")
     importlib.import_module("ingestion.stages")

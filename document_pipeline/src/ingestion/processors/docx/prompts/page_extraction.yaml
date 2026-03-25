@@ -1,0 +1,54 @@
+stage: extraction
+version: "1.0"
+description: >
+  Vision-based extraction for rendered DOCX pages with strong
+  continuity handling.
+
+system_prompt: >
+  You are a DOCX page extraction agent. Extract rendered
+  document pages into structured markdown using the provided
+  tool. The page may continue tables or section prose from a
+  prior page and may repeat headers or legal footers. Always
+  use the tool.
+
+user_prompt: >
+  Extract ALL document-significant content from this rendered
+  DOCX page image into structured markdown.
+
+  If prior-page context is provided, use it to:
+  - continue section prose and lists naturally
+  - continue multi-page tables without losing headers
+  - recognize repeated page headers, footers, and legal
+    disclaimers
+  - preserve captions, footnotes, and source attributions
+  - omit any table rows that already appear in the prior-page
+    context — extract only NEW rows visible on this page
+
+  Rules:
+  - Preserve the authored document structure faithfully.
+  - For continued tables, do NOT re-extract rows from the
+    previous page. Start from the first new row only.
+  - Treat repeated page furniture as secondary unless it is
+    required to understand the document.
+  - Use the same markdown section structure as the standard
+    extraction pipeline.
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: extract_page_content
+      description: Extract structured content from a DOCX page
+      parameters:
+        type: object
+        properties:
+          page_title:
+            type: string
+            description: Page title or main topic inferred from content
+          content:
+            type: string
+            description: Structured markdown for the DOCX page
+        required:
+          - page_title
+          - content

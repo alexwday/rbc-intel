@@ -1,0 +1,49 @@
+stage: finalization
+version: "1.0"
+description: >
+  Detect subsections within one primary document section using
+  ordered page summaries.
+
+system_prompt: >
+  You are a document structure analyst. Review the pages within a
+  single primary section and identify any meaningful subsections.
+  Always use the provided tool.
+
+user_prompt: |
+  Identify subsection boundaries within this primary section.
+
+  ## Section Context
+  - File type: {filetype}
+  - Section title: {section_title}
+  - Page range: {page_start}-{page_end}
+
+  ## Section Page Summaries
+  {page_summaries_json}
+
+tool_choice: required
+
+tools:
+  - type: function
+    function:
+      name: detect_subsections
+      description: Identify subsection boundaries within one section
+      parameters:
+        type: object
+        properties:
+          subsections:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                page_start:
+                  type: integer
+                page_end:
+                  type: integer
+              required:
+                - title
+                - page_start
+                - page_end
+        required:
+          - subsections
