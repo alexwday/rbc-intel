@@ -15,8 +15,6 @@
 #   - LibreOffice (for DOCX/PPTX → PDF conversion in ingestion)
 # =============================================================================
 
-set -e
-
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DOC_PIPELINE="$ROOT_DIR/document_pipeline"
 RESEARCH_PIPELINE="$ROOT_DIR/research_pipeline"
@@ -34,21 +32,21 @@ step()  { echo -e "\n${GREEN}=== $1 ===${NC}"; }
 # ---------------------------------------------------------------------------
 step "1. Checking Python"
 # ---------------------------------------------------------------------------
-PYTHON=$(command -v python3 || true)
-if [ -z "$PYTHON" ]; then
+if ! command -v python3 &>/dev/null; then
     fail "python3 not found. Install Python 3.12+."
 fi
-PY_VERSION=$($PYTHON --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
-info "Python $PY_VERSION found at $PYTHON"
+PY_VERSION=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
+info "Python $PY_VERSION found at $(command -v python3)"
 
 # ---------------------------------------------------------------------------
 step "2. Document Pipeline — venv + dependencies"
 # ---------------------------------------------------------------------------
 if [ ! -d "$DOC_PIPELINE/.venv" ]; then
     echo "Creating document_pipeline venv..."
-    $PYTHON -m venv "$DOC_PIPELINE/.venv"
+    python3 -m venv "$DOC_PIPELINE/.venv" || fail "Could not create document_pipeline venv. Try: python3 -m venv document_pipeline/.venv"
 fi
-"$DOC_PIPELINE/.venv/bin/pip" install -q -e "$DOC_PIPELINE[dev]" 2>&1 | tail -1
+echo "Installing document_pipeline dependencies..."
+"$DOC_PIPELINE/.venv/bin/pip" install -q -e "$DOC_PIPELINE[dev]" || fail "pip install failed for document_pipeline"
 info "document_pipeline dependencies installed"
 
 # ---------------------------------------------------------------------------
@@ -56,9 +54,10 @@ step "3. Research Pipeline — venv + dependencies"
 # ---------------------------------------------------------------------------
 if [ ! -d "$RESEARCH_PIPELINE/.venv" ]; then
     echo "Creating research_pipeline venv..."
-    $PYTHON -m venv "$RESEARCH_PIPELINE/.venv"
+    python3 -m venv "$RESEARCH_PIPELINE/.venv" || fail "Could not create research_pipeline venv. Try: python3 -m venv research_pipeline/.venv"
 fi
-"$RESEARCH_PIPELINE/.venv/bin/pip" install -q -e "$RESEARCH_PIPELINE[dev]" 2>&1 | tail -1
+echo "Installing research_pipeline dependencies..."
+"$RESEARCH_PIPELINE/.venv/bin/pip" install -q -e "$RESEARCH_PIPELINE[dev]" || fail "pip install failed for research_pipeline"
 info "research_pipeline dependencies installed"
 
 # ---------------------------------------------------------------------------
