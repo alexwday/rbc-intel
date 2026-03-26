@@ -47,7 +47,10 @@ if [ ! -d "$DOC_PIPELINE/.venv" ]; then
 fi
 echo "Installing document_pipeline dependencies..."
 cd "$DOC_PIPELINE"
-.venv/bin/pip install -e ".[dev]" || fail "pip install failed for document_pipeline"
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e ".[dev]" || fail "pip install failed for document_pipeline"
+deactivate
 cd "$ROOT_DIR"
 info "document_pipeline dependencies installed"
 
@@ -60,7 +63,10 @@ if [ ! -d "$RESEARCH_PIPELINE/.venv" ]; then
 fi
 echo "Installing research_pipeline dependencies..."
 cd "$RESEARCH_PIPELINE"
-.venv/bin/pip install -e ".[dev]" || fail "pip install failed for research_pipeline"
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e ".[dev]" || fail "pip install failed for research_pipeline"
+deactivate
 cd "$ROOT_DIR"
 info "research_pipeline dependencies installed"
 
