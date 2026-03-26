@@ -1,0 +1,165 @@
+# =============================================================================
+# Research Test Queries
+#
+# Each query simulates what Aegis would send to the /research endpoint.
+# Fields:
+#   name:               Short label for the test
+#   research_statement:  Detailed query crafted by Aegis
+#   combos:             List of {data_source, period, bank} to research
+#
+# To run a query:
+#   python run_test_query.py <query_name>
+#   python run_test_query.py --list          # list available queries
+#   python run_test_query.py --all           # run all queries
+# =============================================================================
+
+queries:
+
+  # -------------------------------------------------------------------------
+  # Single bank, single quarter, single source
+  # -------------------------------------------------------------------------
+
+  - name: rbc_cet1_q1
+    research_statement: >
+      Extract RBC's reported CET1 capital ratio for Q1 2026 from their
+      investor presentation. Include the percentage value, any
+      quarter-over-quarter change, and whether it is reported on a
+      transitional or fully-loaded basis.
+    combos:
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: RBC
+
+  - name: rbc_pillar3_capital
+    research_statement: >
+      From RBC's Q1 2026 Pillar 3 disclosure, extract the CET1 ratio,
+      Tier 1 ratio, Total Capital ratio, and Leverage ratio. Include
+      the risk-weighted assets total and any notable changes from the
+      prior quarter.
+    combos:
+      - data_source: pillar3_disclosure
+        period: "2026_Q1"
+        bank: RBC
+
+  # -------------------------------------------------------------------------
+  # Single bank, cross-quarter comparison
+  # -------------------------------------------------------------------------
+
+  - name: td_capital_trend
+    research_statement: >
+      Compare TD Bank's capital position between Q4 2025 and Q1 2026
+      using their investor presentations. Extract CET1 ratio, return
+      on equity, and efficiency ratio for both quarters. Note the
+      direction and magnitude of changes.
+    combos:
+      - data_source: investor_slides
+        period: "2025_Q4"
+        bank: TD
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: TD
+
+  # -------------------------------------------------------------------------
+  # Cross-bank comparison, single quarter
+  # -------------------------------------------------------------------------
+
+  - name: big6_cet1_q1
+    research_statement: >
+      Compare the CET1 capital ratios across all Big 6 Canadian banks
+      for Q1 2026 using their investor presentations. For each bank,
+      extract the reported CET1 percentage and any quarter-over-quarter
+      change. Rank the banks from highest to lowest CET1 ratio.
+    combos:
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: RBC
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: TD
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: BMO
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: CIBC
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: BNS
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: NBC
+
+  # -------------------------------------------------------------------------
+  # Cross-source (investor slides + Pillar 3 for same bank)
+  # -------------------------------------------------------------------------
+
+  - name: bmo_deep_capital
+    research_statement: >
+      Analyze BMO's capital position for Q1 2026 using both their
+      investor presentation and Pillar 3 disclosure. From the investor
+      slides, extract headline capital ratios and management commentary.
+      From Pillar 3, extract the detailed capital composition (CET1
+      components, AT1, Tier 2), risk-weighted assets by category, and
+      leverage ratio. Reconcile any differences between the two sources.
+    combos:
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: BMO
+      - data_source: pillar3_disclosure
+        period: "2026_Q1"
+        bank: BMO
+
+  # -------------------------------------------------------------------------
+  # Cross-bank Pillar 3 comparison
+  # -------------------------------------------------------------------------
+
+  - name: rbc_td_rwa_comparison
+    research_statement: >
+      Compare risk-weighted assets between RBC and TD for Q1 2026 using
+      their Pillar 3 disclosures. Break down RWA by risk type (credit
+      risk, market risk, operational risk). Calculate total RWA and the
+      proportion allocated to each risk type for both banks.
+    combos:
+      - data_source: pillar3_disclosure
+        period: "2026_Q1"
+        bank: RBC
+      - data_source: pillar3_disclosure
+        period: "2026_Q1"
+        bank: TD
+
+  # -------------------------------------------------------------------------
+  # Full cross-bank, cross-quarter, cross-source
+  # -------------------------------------------------------------------------
+
+  - name: cibc_bns_full_comparison
+    research_statement: >
+      Compare CIBC and Scotiabank across Q4 2025 and Q1 2026. For each
+      bank and quarter, extract from investor slides: CET1 ratio, net
+      income, return on equity, and efficiency ratio. From Pillar 3:
+      total capital ratio, leverage ratio, and liquidity coverage ratio.
+      Identify which bank showed stronger improvement quarter-over-quarter.
+    combos:
+      - data_source: investor_slides
+        period: "2025_Q4"
+        bank: CIBC
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: CIBC
+      - data_source: investor_slides
+        period: "2025_Q4"
+        bank: BNS
+      - data_source: investor_slides
+        period: "2026_Q1"
+        bank: BNS
+      - data_source: pillar3_disclosure
+        period: "2025_Q4"
+        bank: CIBC
+      - data_source: pillar3_disclosure
+        period: "2026_Q1"
+        bank: CIBC
+      - data_source: pillar3_disclosure
+        period: "2025_Q4"
+        bank: BNS
+      - data_source: pillar3_disclosure
+        period: "2026_Q1"
+        bank: BNS

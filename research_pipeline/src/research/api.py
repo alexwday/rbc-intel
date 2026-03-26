@@ -101,6 +101,21 @@ class ChatRequest(BaseModel):
     )
 
 
+class ResearchCombo(BaseModel):
+    """A single research combo — data source + period + bank."""
+
+    data_source: str = Field(..., description="Data source (e.g., investor_slides, pillar3_disclosure)")
+    period: str = Field(default="", description="Reporting period filter (e.g., 2026_Q1)")
+    bank: str = Field(default="", description="Bank filter (e.g., RBC, TD)")
+
+
+class ResearchRequest(BaseModel):
+    """Direct research request from Aegis."""
+
+    research_statement: str = Field(..., description="Detailed research query from Aegis")
+    combos: List[ResearchCombo] = Field(..., description="List of data_source/period/bank combos to research")
+
+
 class ChatResponse(BaseModel):
     """Non-streaming chat response payload."""
 
@@ -338,6 +353,81 @@ async def chat_endpoint(request: ChatRequest):
 
     except (ImportError, RuntimeError, ValueError) as exc:
         logger.error("Chat endpoint error: %s", str(exc), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {exc}",
+        ) from exc
+
+
+@app.post("/research")
+async def research_endpoint(request: ResearchRequest):
+    """Direct research endpoint for Aegis integration.
+
+    Receives a research statement and combos (data_source + period + bank),
+    researches each combo in parallel, and returns a synthesized response.
+    """
+    try:
+        logger.info(
+            "Research request: %d combos, statement: '%s...'",
+            len(request.combos),
+            request.research_statement[:80],
+        )
+
+        from .orchestrator.direct_research import execute_direct_research
+
+        combos = [combo.model_dump() for combo in request.combos]
+
+        async def stream_research():
+            """Bridge sync generator to async streaming."""
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            chunk_queue: queue.Queue = queue.Queue()
+            exception_container: List[Optional[Exception]] = [None]
+
+            def run_sync():
+                try:
+                    for chunk in execute_direct_research(
+                        request.research_statement, combos
+                    ):
+                        if isinstance(chunk, str):
+                            chunk_queue.put(chunk)
+                    chunk_queue.put(None)
+                except Exception as exc:
+                    exception_container[0] = exc
+                    chunk_queue.put(None)
+
+            thread = threading.Thread(target=run_sync)
+            thread.start()
+
+            while True:
+                try:
+                    chunk = chunk_queue.get(timeout=0.1)
+                    if chunk is None:
+                        break
+                    yield chunk
+                    await asyncio.sleep(0)
+                except queue.Empty:
+                    if exception_container[0] is not None:
+                        yield f"\nError: {exception_container[0]}\n"
+                        break
+                    await asyncio.sleep(0.01)
+
+            thread.join(timeout=1)
+            if exception_container[0] is not None:
+                yield f"\nError: {exception_container[0]}\n"
+
+        return StreamingResponse(
+            stream_research(),
+            media_type="text/plain",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
+        )
+
+    except Exception as exc:
+        logger.error("Research endpoint error: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {exc}",
