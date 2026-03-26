@@ -43,10 +43,12 @@ step "2. Document Pipeline — venv + dependencies"
 # ---------------------------------------------------------------------------
 if [ ! -d "$DOC_PIPELINE/.venv" ]; then
     echo "Creating document_pipeline venv..."
-    python3 -m venv "$DOC_PIPELINE/.venv" || fail "Could not create document_pipeline venv. Try: python3 -m venv document_pipeline/.venv"
+    python3 -m venv "$DOC_PIPELINE/.venv" || fail "Could not create document_pipeline venv"
 fi
 echo "Installing document_pipeline dependencies..."
-"$DOC_PIPELINE/.venv/bin/pip" install -q -e "$DOC_PIPELINE[dev]" || fail "pip install failed for document_pipeline"
+cd "$DOC_PIPELINE"
+.venv/bin/pip install -e ".[dev]" || fail "pip install failed for document_pipeline"
+cd "$ROOT_DIR"
 info "document_pipeline dependencies installed"
 
 # ---------------------------------------------------------------------------
@@ -54,10 +56,12 @@ step "3. Research Pipeline — venv + dependencies"
 # ---------------------------------------------------------------------------
 if [ ! -d "$RESEARCH_PIPELINE/.venv" ]; then
     echo "Creating research_pipeline venv..."
-    python3 -m venv "$RESEARCH_PIPELINE/.venv" || fail "Could not create research_pipeline venv. Try: python3 -m venv research_pipeline/.venv"
+    python3 -m venv "$RESEARCH_PIPELINE/.venv" || fail "Could not create research_pipeline venv"
 fi
 echo "Installing research_pipeline dependencies..."
-"$RESEARCH_PIPELINE/.venv/bin/pip" install -q -e "$RESEARCH_PIPELINE[dev]" || fail "pip install failed for research_pipeline"
+cd "$RESEARCH_PIPELINE"
+.venv/bin/pip install -e ".[dev]" || fail "pip install failed for research_pipeline"
+cd "$ROOT_DIR"
 info "research_pipeline dependencies installed"
 
 # ---------------------------------------------------------------------------
