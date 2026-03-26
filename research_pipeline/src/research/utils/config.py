@@ -63,6 +63,13 @@ class Config:
         os.getenv("RESEARCH_MAX_DATA_SOURCES_PER_QUERY") or 5
     )
 
+    REASONING_EFFORT_SMALL: str = os.getenv(
+        "RESEARCH_REASONING_EFFORT_SMALL", "low"
+    )
+    REASONING_EFFORT_LARGE: str = os.getenv(
+        "RESEARCH_REASONING_EFFORT_LARGE", "medium"
+    )
+
     LOG_LEVEL: str = os.getenv("RESEARCH_LOG_LEVEL", "INFO")
 
     PROCESS_MONITOR_MODEL_NAME: str = os.getenv(
@@ -127,13 +134,13 @@ class Config:
                 cls.MODEL_SMALL,
                 cls.MODEL_SMALL_PROMPT_COST,
                 cls.MODEL_SMALL_COMPLETION_COST,
-                "minimal",
+                cls.REASONING_EFFORT_SMALL or None,
             ),
             "large": (
                 cls.MODEL_LARGE,
                 cls.MODEL_LARGE_PROMPT_COST,
                 cls.MODEL_LARGE_COMPLETION_COST,
-                "medium",
+                cls.REASONING_EFFORT_LARGE or None,
             ),
             "embedding": (
                 cls.MODEL_EMBEDDING,
