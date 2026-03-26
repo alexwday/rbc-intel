@@ -2,8 +2,8 @@
 -- Two data sources: investor slides (PDF) and Pillar 3 disclosures (XLSX)
 -- for the Big 6 Canadian banks, Q4 2025 and Q1 2026.
 
--- Clean old entries
-DELETE FROM research_registry WHERE data_source NOT IN ('investor_slides', 'pillar3_disclosure');
+-- Clean all existing entries and re-insert
+DELETE FROM research_registry;
 
 -- Investor Slides
 INSERT INTO research_registry (
@@ -51,20 +51,7 @@ INSERT INTO research_registry (
         "What is BMO''s return on equity?",
         "Which bank has the highest efficiency ratio?"
     ]'::jsonb
-) ON CONFLICT (data_source) DO UPDATE SET
-    display_name = EXCLUDED.display_name,
-    source_summary = EXCLUDED.source_summary,
-    source_description = EXCLUDED.source_description,
-    filter_1_label = EXCLUDED.filter_1_label,
-    filter_1_description = EXCLUDED.filter_1_description,
-    filter_2_label = EXCLUDED.filter_2_label,
-    filter_2_description = EXCLUDED.filter_2_description,
-    max_pages_for_full_context = EXCLUDED.max_pages_for_full_context,
-    max_selected_files = EXCLUDED.max_selected_files,
-    batch_size = EXCLUDED.batch_size,
-    enable_dense_table_retrieval = EXCLUDED.enable_dense_table_retrieval,
-    sample_questions = EXCLUDED.sample_questions,
-    updated_at = CURRENT_TIMESTAMP;
+);
 
 -- Pillar 3 Regulatory Disclosures
 INSERT INTO research_registry (
@@ -112,17 +99,4 @@ INSERT INTO research_registry (
         "How does BMO''s leverage ratio compare to CIBC''s?",
         "What is the liquidity coverage ratio for Scotiabank?"
     ]'::jsonb
-) ON CONFLICT (data_source) DO UPDATE SET
-    display_name = EXCLUDED.display_name,
-    source_summary = EXCLUDED.source_summary,
-    source_description = EXCLUDED.source_description,
-    filter_1_label = EXCLUDED.filter_1_label,
-    filter_1_description = EXCLUDED.filter_1_description,
-    filter_2_label = EXCLUDED.filter_2_label,
-    filter_2_description = EXCLUDED.filter_2_description,
-    max_pages_for_full_context = EXCLUDED.max_pages_for_full_context,
-    max_selected_files = EXCLUDED.max_selected_files,
-    batch_size = EXCLUDED.batch_size,
-    enable_dense_table_retrieval = EXCLUDED.enable_dense_table_retrieval,
-    sample_questions = EXCLUDED.sample_questions,
-    updated_at = CURRENT_TIMESTAMP;
+);

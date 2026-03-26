@@ -4,9 +4,12 @@
 -- Import with: psql -f prompts_seed.sql
 -- Or run in pgAdmin/DBeaver
 --
--- Note: Uses ON CONFLICT to handle re-runs safely
+-- Deletes all existing research prompts and re-inserts cleanly.
 
 BEGIN;
+
+-- Clean existing research prompts
+DELETE FROM prompts WHERE model = 'research';
 
 -- 1. Clarifier
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -238,13 +241,7 @@ Analyze the following conversation and determine the appropriate action.
 4. If ambiguous: Request ONE essential clarification
 5. If broad discovery OR requires completeness (counting, enumeration, aggregation): Request deep research approval
 6. Call the make_clarifier_decision tool with your decision
-</instructions>', '{"type":"function","function":{"name":"make_clarifier_decision","parameters":{"type":"object","required":["action","output"],"properties":{"action":{"enum":["ask_clarification","request_deep_research_approval","proceed_with_research"],"type":"string","description":"The action to take"},"output":{"type":"string","description":"The research statement (if creating) OR the clarification question (if requesting)"},"is_db_wide":{"type":"boolean","default":false,"description":"True if query requires searching across entire data source(s) rather than targeted search"},"deep_research_approved":{"type":"boolean","default":false,"description":"True only after user has confirmed they want deep research"}}},"description":"Decide how to proceed with the user''s query.\n\nDEFAULT to proceed_with_research - most queries are clear enough.\n\nUSE ask_clarification only when genuinely ambiguous.\n\nUSE request_deep_research_approval for broad discovery queries AND for queries where correctness depends on completeness (counting, enumeration, aggregation)."}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', '{"type":"function","function":{"name":"make_clarifier_decision","parameters":{"type":"object","required":["action","output"],"properties":{"action":{"enum":["ask_clarification","request_deep_research_approval","proceed_with_research"],"type":"string","description":"The action to take"},"output":{"type":"string","description":"The research statement (if creating) OR the clarification question (if requesting)"},"is_db_wide":{"type":"boolean","default":false,"description":"True if query requires searching across entire data source(s) rather than targeted search"},"deep_research_approved":{"type":"boolean","default":false,"description":"True only after user has confirmed they want deep research"}}},"description":"Decide how to proceed with the user''s query.\n\nDEFAULT to proceed_with_research - most queries are clear enough.\n\nUSE ask_clarification only when genuinely ambiguous.\n\nUSE request_deep_research_approval for broad discovery queries AND for queries where correctness depends on completeness (counting, enumeration, aggregation)."}}'::jsonb);
 
 -- 2. Direct Response
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -389,13 +386,7 @@ Provide a response to the user based on the following conversation.
 3. Provide a helpful response using ONLY information from this conversation
 4. For policy responses: structure clearly, cite sources, include disclaimer
 5. For conversational messages: respond naturally and briefly
-</instructions>', NULL)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', NULL);
 
 -- 3. Planner
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -514,13 +505,7 @@ Research Statement: {{research_statement}}
    - Data sources suggested by document search results
    - Any other data sources whose descriptions clearly match the research topic
 5. Call the select_data_sources tool with your selection
-</instructions>', '{"type":"function","function":{"name":"select_data_sources","parameters":{"type":"object","required":["data_sources"],"properties":{"data_sources":{"type":"array","items":{"type":"integer","minimum":0,"description":"Data source index from AVAILABLE_DATA_SOURCES"},"minItems":1,"description":"Data source indices to query (most relevant)"}}},"description":"Select data sources to query for the research statement.\n\nProvide data source INDEX NUMBERS from AVAILABLE_DATA_SOURCES.\n\nPrefer targeted selection over broad unfocused searches."}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', '{"type":"function","function":{"name":"select_data_sources","parameters":{"type":"object","required":["data_sources"],"properties":{"data_sources":{"type":"array","items":{"type":"integer","minimum":0,"description":"Data source index from AVAILABLE_DATA_SOURCES"},"minItems":1,"description":"Data source indices to query (most relevant)"}}},"description":"Select data sources to query for the research statement.\n\nProvide data source INDEX NUMBERS from AVAILABLE_DATA_SOURCES.\n\nPrefer targeted selection over broad unfocused searches."}}'::jsonb);
 
 -- 4. Router
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -626,13 +611,7 @@ Analyze the following conversation and route the user''s latest query.
 2. Check if this topic has already been discussed in the conversation
 3. Apply the routing decision framework from your instructions
 4. Call the route_query tool with your decision and reasoning
-</instructions>', '{"type":"function","function":{"name":"route_query","parameters":{"type":"object","required":["function_name"],"properties":{"function_name":{"enum":["direct_response","database_research"],"type":"string","description":"Route to direct_response or database_research"}}},"description":"Route query: direct_response (follow-ups, greetings, meta questions), database_research (new policy questions)"}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', '{"type":"function","function":{"name":"route_query","parameters":{"type":"object","required":["function_name"],"properties":{"function_name":{"enum":["direct_response","database_research"],"type":"string","description":"Route to direct_response or database_research"}}},"description":"Route query: direct_response (follow-ups, greetings, meta questions), database_research (new policy questions)"}}'::jsonb);
 
 -- 5. Summarizer
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -800,13 +779,7 @@ Research Statement: {{research_statement}}
 3. Organize findings into a clear, structured response
 4. Cite sources using the reference tags [REF:X] provided
 5. Include verification disclaimer
-</instructions>', NULL)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', NULL);
 
 -- 6. Metadata Unified Findings
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -940,13 +913,7 @@ Batch {{batch_number}} of {{total_batches}} ({{document_count}} documents)
 3. Make a 3-way decision for each document
 4. Call return_unified_decisions with ALL {{document_count}} documents
 5. Use the index attribute from each document element (the integer in index="N")
-</instructions>', '{"type":"function","function":{"name":"return_unified_decisions","parameters":{"type":"object","required":["document_decisions"],"properties":{"document_decisions":{"type":"array","items":{"type":"object","required":["index","status","finding"],"properties":{"index":{"type":"integer","description":"The index attribute from the document element (e.g., index=\"1\" → 1)"},"status":{"enum":["answered","irrelevant","needs_deep_research"],"type":"string","description":"The decision: answered (metadata sufficient), irrelevant (off-topic), needs_deep_research (relevant but need full doc)"},"finding":{"type":"string","description":"Required for all statuses. For answered: substantive finding. For needs_deep_research: best-effort finding with a note on missing detail. For irrelevant: brief dismissal."},"page_number":{"type":"integer","description":"The SINGLE most relevant page number from excerpts. Choose only one page even if multiple are mentioned. Use for answered or needs_deep_research status."}}},"description":"Decision for each document in the batch - must include ALL documents"}}},"description":"Return 3-way decisions for each document in the batch.\n\nUSE status=''answered'' when metadata provides sufficient information.\nUSE status=''irrelevant'' when document topic doesn''t match research.\nUSE status=''needs_deep_research'' sparingly - only when document looks relevant but lacks detail."}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', '{"type":"function","function":{"name":"return_unified_decisions","parameters":{"type":"object","required":["document_decisions"],"properties":{"document_decisions":{"type":"array","items":{"type":"object","required":["index","status","finding"],"properties":{"index":{"type":"integer","description":"The index attribute from the document element (e.g., index=\"1\" → 1)"},"status":{"enum":["answered","irrelevant","needs_deep_research"],"type":"string","description":"The decision: answered (metadata sufficient), irrelevant (off-topic), needs_deep_research (relevant but need full doc)"},"finding":{"type":"string","description":"Required for all statuses. For answered: substantive finding. For needs_deep_research: best-effort finding with a note on missing detail. For irrelevant: brief dismissal."},"page_number":{"type":"integer","description":"The SINGLE most relevant page number from excerpts. Choose only one page even if multiple are mentioned. Use for answered or needs_deep_research status."}}},"description":"Decision for each document in the batch - must include ALL documents"}}},"description":"Return 3-way decisions for each document in the batch.\n\nUSE status=''answered'' when metadata provides sufficient information.\nUSE status=''irrelevant'' when document topic doesn''t match research.\nUSE status=''needs_deep_research'' sparingly - only when document looks relevant but lacks detail."}}'::jsonb);
 
 -- 7. File Research
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -1097,13 +1064,7 @@ Document: {{document_name}}
 3. Extract content verbatim, preserving context and qualifiers
 4. Note what subject/topic each finding pertains to
 5. Call extract_page_research with your extractions
-</instructions>', '{"type":"function","function":{"name":"extract_page_research","parameters":{"type":"object","required":["status_summary","page_research"],"properties":{"page_research":{"type":"array","items":{"type":"object","required":["page_number","finding"],"properties":{"finding":{"type":"string","description":"Verbatim or near-verbatim content from the document. Preserve exact wording, qualifiers, conditions, and context. Include source attribution (e.g., ''Section 4.2 states...'')."},"page_number":{"type":"integer","description":"The specific page number where this content appears."}}},"description":"Array of verbatim extractions with page references. Empty array if no relevant content found."},"status_summary":{"type":"string","description":"Brief description of what content was found. Note if document is about a different but related subject."}}},"description":"Extract verbatim content from the document with full context preservation.\n\nPreserve exact wording, qualifiers, and conditions.\nInclude source attribution for traceability.\nDo not interpret - let the summarizer reason about findings."}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', '{"type":"function","function":{"name":"extract_page_research","parameters":{"type":"object","required":["status_summary","page_research"],"properties":{"page_research":{"type":"array","items":{"type":"object","required":["page_number","finding"],"properties":{"finding":{"type":"string","description":"Verbatim or near-verbatim content from the document. Preserve exact wording, qualifiers, conditions, and context. Include source attribution (e.g., ''Section 4.2 states...'')."},"page_number":{"type":"integer","description":"The specific page number where this content appears."}}},"description":"Array of verbatim extractions with page references. Empty array if no relevant content found."},"status_summary":{"type":"string","description":"Brief description of what content was found. Note if document is about a different but related subject."}}},"description":"Extract verbatim content from the document with full context preservation.\n\nPreserve exact wording, qualifiers, and conditions.\nInclude source attribution for traceability.\nDo not interpret - let the summarizer reason about findings."}}'::jsonb);
 
 -- 8. Subagent: catalog_batch_selection (file selection mode — Path A)
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -1202,13 +1163,7 @@ Batch {{batch_number}} of {{total_batches}}
 3. Assess relevance and likely information depth
 4. Select documents most likely to contain valuable detailed information
 5. Call select_relevant_files with selected_indices (use index attribute from each document)
-</instructions>', '{"type":"function","function":{"name":"select_relevant_files","parameters":{"type":"object","required":["selected_indices","reasoning"],"properties":{"reasoning":{"type":"string","description":"Brief explanation of selection criteria applied"},"selected_indices":{"type":"array","items":{"type":"integer"},"description":"Document indices (from index attribute) to select for deep research"}}},"description":"Select documents by index for deep file research. Be selective - prioritize authoritative sources with detailed content."}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', '{"type":"function","function":{"name":"select_relevant_files","parameters":{"type":"object","required":["selected_indices","reasoning"],"properties":{"reasoning":{"type":"string","description":"Brief explanation of selection criteria applied"},"selected_indices":{"type":"array","items":{"type":"integer"},"description":"Document indices (from index attribute) to select for deep research"}}},"description":"Select documents by index for deep file research. Be selective - prioritize authoritative sources with detailed content."}}'::jsonb);
 
 -- 9. Agent: filter_resolver (resolves per-source subfolder filters)
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -1277,13 +1232,7 @@ Research Statement: {{research_statement}}
 5. If all can be resolved (including leaving irrelevant filters unset), set action to "apply_filters"
 6. Call resolve_filters with your decision
 </instructions>',
-'{"type":"function","function":{"name":"resolve_filters","parameters":{"type":"object","required":["action"],"properties":{"action":{"type":"string","enum":["apply_filters","ask_user"],"description":"apply_filters if all values resolved; ask_user if clarification needed"},"source_filters":{"type":"array","items":{"type":"object","required":["data_source"],"properties":{"data_source":{"type":"string","description":"Data source identifier"},"filter_1":{"type":"string","description":"Value for filter level 1 (omit or empty to leave unset)"},"filter_2":{"type":"string","description":"Value for filter level 2 (omit or empty to leave unset)"},"filter_3":{"type":"string","description":"Value for filter level 3 (omit or empty to leave unset)"}}},"description":"Per-source filter values (only when action=apply_filters)"},"clarification_message":{"type":"string","description":"Question for the user (only when action=ask_user)"}}},"description":"Resolve subfolder filter values for selected data sources based on the research statement. Either auto-resolve values or ask the user for clarification."}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+'{"type":"function","function":{"name":"resolve_filters","parameters":{"type":"object","required":["action"],"properties":{"action":{"type":"string","enum":["apply_filters","ask_user"],"description":"apply_filters if all values resolved; ask_user if clarification needed"},"source_filters":{"type":"array","items":{"type":"object","required":["data_source"],"properties":{"data_source":{"type":"string","description":"Data source identifier"},"filter_1":{"type":"string","description":"Value for filter level 1 (omit or empty to leave unset)"},"filter_2":{"type":"string","description":"Value for filter level 2 (omit or empty to leave unset)"},"filter_3":{"type":"string","description":"Value for filter level 3 (omit or empty to leave unset)"}}},"description":"Per-source filter values (only when action=apply_filters)"},"clarification_message":{"type":"string","description":"Question for the user (only when action=ask_user)"}}},"description":"Resolve subfolder filter values for selected data sources based on the research statement. Either auto-resolve values or ask the user for clarification."}}'::jsonb);
 
 -- 10. Subagent: dense_table_research (per-batch extraction from table data)
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -1317,13 +1266,7 @@ Data rows in this batch: {{row_count}}
 3. If the research asks for rankings or comparisons, provide them with exact values
 4. If no relevant data is found in this batch, say "No relevant data found in this batch"
 5. Format findings clearly — use lists or brief structured text
-</instructions>', NULL)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', NULL);
 
 -- 11. Subagent: dense_table_filter (filter analysis for large tables)
 INSERT INTO prompts (model, layer, name, version, description, system_prompt, user_prompt, tool_definition)
@@ -1350,13 +1293,7 @@ Available filter columns and their values:
 1. Check if the research statement implies any specific filter values
 2. Only set filters you are confident about
 3. Call select_filters with applicable filters (empty dict if none apply)
-</instructions>', '{"type":"function","function":{"name":"select_filters","parameters":{"type":"object","required":["filters"],"properties":{"filters":{"type":"object","description":"Column name to filter value mapping. Empty object {} if no filters apply.","additionalProperties":{"type":"string"}}}},"description":"Select column filters to narrow the table data before research. Only set filters when the research statement clearly implies specific values."}}'::jsonb)
-ON CONFLICT (model, layer, name, version) DO UPDATE SET
-    description = EXCLUDED.description,
-    system_prompt = EXCLUDED.system_prompt,
-    user_prompt = EXCLUDED.user_prompt,
-    tool_definition = EXCLUDED.tool_definition,
-    updated_at = CURRENT_TIMESTAMP;
+</instructions>', '{"type":"function","function":{"name":"select_filters","parameters":{"type":"object","required":["filters"],"properties":{"filters":{"type":"object","description":"Column name to filter value mapping. Empty object {} if no filters apply.","additionalProperties":{"type":"string"}}}},"description":"Select column filters to narrow the table data before research. Only set filters when the research statement clearly implies specific values."}}'::jsonb);
 
 COMMIT;
 
