@@ -142,6 +142,8 @@ class LLMClient:
         }
         if model_config["temperature"] is not None:
             kwargs["temperature"] = model_config["temperature"]
+        if model_config.get("reasoning_effort") is not None:
+            kwargs["reasoning_effort"] = model_config["reasoning_effort"]
         if tools:
             kwargs["tools"] = tools
         if tool_choice:

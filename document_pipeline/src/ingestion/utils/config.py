@@ -575,8 +575,11 @@ def get_stage_model_config(stage: str) -> dict:
     prefix = stage.upper()
     temp_raw = os.getenv(f"{prefix}_TEMPERATURE", "")
     temperature = float(temp_raw) if temp_raw else None
+    reasoning_raw = os.getenv(f"{prefix}_REASONING_EFFORT", "")
+    reasoning_effort = reasoning_raw if reasoning_raw else None
     return {
         "model": _require_env(f"{prefix}_MODEL"),
         "max_tokens": int(_require_env(f"{prefix}_MAX_TOKENS")),
         "temperature": temperature,
+        "reasoning_effort": reasoning_effort,
     }
